@@ -25,13 +25,18 @@ export class BoxPlotFiveNumberDownsampler extends Downsampler<DataPoint, BoxPlot
   }
   
   /**
-   * 计算五数概括
+   * 计算五数概括 - 优化：避免重复排序
    */
   computeFiveNumberSummary(
     data: DataPoint[], 
     options: BoxPlotOptions
   ): BoxPlotSummary {
-    const values = data.map(d => d.y).sort((a, b) => a - b);
+    // 优化：使用单次遍历提取值，然后排序一次
+    const values = new Array<number>(data.length);
+    for (let i = 0; i < data.length; i++) {
+      values[i] = data[i].y;
+    }
+    values.sort((a, b) => a - b);
     const n = values.length;
     
     if (n === 0) {
@@ -42,8 +47,7 @@ export class BoxPlotFiveNumberDownsampler extends Downsampler<DataPoint, BoxPlot
       };
     }
     
-    const min = values[0];
-    const max = values[n - 1];
+    // min 和 max 在后面通过非离群点计算
     
     // 使用线性插值法计算四分位数
     const q1 = this.quantile(values, 0.25);
@@ -54,18 +58,29 @@ export class BoxPlotFiveNumberDownsampler extends Downsampler<DataPoint, BoxPlot
     const lowerFence = q1 - (options.outlierThreshold || 1.5) * iqr;
     const upperFence = q3 + (options.outlierThreshold || 1.5) * iqr;
     
-    // 识别离群点
-    const outliers = values.filter(v => v < lowerFence || v > upperFence);
-    const nonOutliers = values.filter(v => v >= lowerFence && v <= upperFence);
+    // 识别离群点 - 优化：单次遍历分离离群点和非离群点
+    const outliers: number[] = [];
+    let nonOutlierMin = values[0], nonOutlierMax = values[n - 1];
+    
+    for (const v of values) {
+      if (v < lowerFence || v > upperFence) {
+        outliers.push(v);
+      } else {
+        if (v < nonOutlierMin) nonOutlierMin = v;
+        if (v > nonOutlierMax) nonOutlierMax = v;
+      }
+    }
+    
+    const hasNonOutliers = outliers.length < n;
     
     return {
-      min: nonOutliers.length > 0 ? Math.min(...nonOutliers) : q1,
+      min: hasNonOutliers ? nonOutlierMin : q1,
       q1,
       median,
       q3,
-      max: nonOutliers.length > 0 ? Math.max(...nonOutliers) : q3,
-      lowerWhisker: nonOutliers.length > 0 ? Math.min(...nonOutliers) : q1,
-      upperWhisker: nonOutliers.length > 0 ? Math.max(...nonOutliers) : q3,
+      max: hasNonOutliers ? nonOutlierMax : q3,
+      lowerWhisker: hasNonOutliers ? nonOutlierMin : q1,
+      upperWhisker: hasNonOutliers ? nonOutlierMax : q3,
       outliers,
       sampleSize: n
     };

@@ -1,12 +1,13 @@
 <template>
   <div class="demo-page">
     <h1 class="page-title">箱线图降采样演示</h1>
-    <p class="page-desc">使用五数概括法直接计算统计量，无需保留原始数据点</p>
+    <p class="page-desc">使用五数概括法直接计算统计量，支持多组数据对比，可缩放查看细节</p>
     
     <ControlPanel v-model="config" @change="onConfigChange" @refresh="generateData" />
     
     <div class="charts-grid">
       <ChartCard 
+        v-if="config.showOriginal"
         title="原始数据分布" 
         :info="originalInfo"
       >
@@ -16,29 +17,10 @@
       <ChartCard 
         title="五数概括" 
         :info="sampledInfo"
+        :class="{ 'full-width': !config.showOriginal }"
       >
         <v-chart class="chart" :option="sampledChartOption" autoresize />
       </ChartCard>
-    </div>
-    
-    <div class="stats-comparison" v-if="boxPlotStats">
-      <h3>统计量对比</h3>
-      <div class="stats-grid">
-        <div class="stat-row header">
-          <span>统计量</span>
-          <span>原始值</span>
-          <span>采样后</span>
-          <span>误差</span>
-        </div>
-        <div class="stat-row" v-for="stat in comparisonStats" :key="stat.name">
-          <span class="stat-name">{{ stat.name }}</span>
-          <span class="stat-value">{{ stat.original.toFixed(2) }}</span>
-          <span class="stat-value">{{ stat.sampled.toFixed(2) }}</span>
-          <span class="stat-error" :class="{ low: stat.error < 1, medium: stat.error >= 1 && stat.error < 5, high: stat.error >= 5 }">
-            {{ stat.error.toFixed(2) }}%
-          </span>
-        </div>
-      </div>
     </div>
   </div>
 </template>
@@ -47,8 +29,8 @@
 import { ref, computed, onMounted } from 'vue';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
-import { ScatterChart, CustomChart } from 'echarts/charts';
-import { GridComponent, TooltipComponent } from 'echarts/components';
+import { BoxplotChart, ScatterChart } from 'echarts/charts';
+import { GridComponent, TooltipComponent, DataZoomComponent, TitleComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
 import { DataGenerator } from '@core/utils/dataGenerator';
 import { BoxPlotFiveNumberDownsampler, BoxPlotStratifiedDownsampler } from '@core/boxplot/fiveNumber';
@@ -56,180 +38,371 @@ import type { DataPoint, BoxPlotSummary } from '@types';
 import ChartCard from '@components/ChartCard.vue';
 import ControlPanel from '@components/ControlPanel.vue';
 
-use([CanvasRenderer, ScatterChart, CustomChart, GridComponent, TooltipComponent]);
+use([CanvasRenderer, BoxplotChart, ScatterChart, GridComponent, TooltipComponent, DataZoomComponent, TitleComponent]);
 
 const config = ref({
-  dataSize: '10000',
-  targetCount: 500,
+  dataSize: '1000',
+  targetCount: 20,
   algorithm: 'box-five-number',
   aggregation: 'average',
-  preserveExtrema: true
+  preserveExtrema: true,
+  showOriginal: false,
+  groupCount: 20
 });
 
-const originalData = ref<DataPoint[]>([]);
-const sampledData = ref<DataPoint[]>([]);
-const boxPlotStats = ref<BoxPlotSummary | null>(null);
+// 多组数据
+const originalGroups = ref<DataPoint[][]>([]);
+const sampledGroups = ref<DataPoint[][]>([]);
+const boxPlotStatsList = ref<BoxPlotSummary[]>([]);
+const originalStatsList = ref<BoxPlotSummary[]>([]);
 const processingTime = ref(0);
 
+const totalOriginalCount = computed(() => 
+  originalGroups.value.reduce((sum, group) => sum + group.length, 0)
+);
+
+const totalSampledCount = computed(() => 
+  sampledGroups.value.reduce((sum, group) => sum + group.length, 0)
+);
+
 const originalInfo = computed(() => ({
-  originalCount: originalData.value.length,
-  sampledCount: originalData.value.length,
+  originalCount: totalOriginalCount.value,
+  sampledCount: totalOriginalCount.value,
   compressionRatio: 1,
   duration: 0
 }));
 
 const sampledInfo = computed(() => ({
-  originalCount: originalData.value.length,
-  sampledCount: sampledData.value.length,
-  compressionRatio: originalData.value.length / (sampledData.value.length || 1),
+  originalCount: totalOriginalCount.value,
+  sampledCount: totalSampledCount.value,
+  compressionRatio: totalOriginalCount.value / (totalSampledCount.value || 1),
   duration: processingTime.value
 }));
 
-const originalChartOption = computed(() => ({
-  grid: { left: '3%', right: '4%', bottom: '10%', top: '10%', containLabel: true },
-  xAxis: { type: 'value', name: '值' },
-  yAxis: { type: 'value', name: '密度', show: false },
-  tooltip: { trigger: 'item' },
-  series: [{
-    type: 'scatter',
-    data: originalData.value.map(d => [d.y, Math.random() * 0.1]),
-    symbolSize: 3,
-    itemStyle: { color: '#5470c6', opacity: 0.6 },
-    animation: false
-  }]
-}));
+// 生成多组箱线图数据
+const groupNames = computed(() => {
+  const count = config.value.groupCount || 20;
+  return Array.from({ length: count }, (_, i) => {
+    // 大数据量时使用数字编号，节省内存
+    if (count > 1000) return String(i + 1);
+    return `组${i + 1}`;
+  });
+});
 
-const sampledChartOption = computed(() => {
-  if (!boxPlotStats.value) return {};
+// 计算原始数据的统计量
+function computeStats(groups: DataPoint[][]): BoxPlotSummary[] {
+  const sampler = new BoxPlotFiveNumberDownsampler();
+  return groups.map(group => sampler.computeFiveNumberSummary(group, {}));
+}
+
+// 原始数据箱线图配置
+const originalChartOption = computed(() => {
+  // 准备原始数据的箱线图统计
+  const statsList = originalStatsList.value.length > 0 
+    ? originalStatsList.value 
+    : computeStats(originalGroups.value);
   
-  const stats = boxPlotStats.value;
+  // 准备箱线图数据 [min, Q1, median, Q3, max]
+  const boxData = statsList.map(stats => [
+    stats.min,
+    stats.q1,
+    stats.median,
+    stats.q3,
+    stats.max
+  ]);
+  
+  // 准备离群点数据 - 大数据量时限制显示
+  const outliers: number[][] = [];
+  const maxOutliers = groupNames.value.length > 1000 ? 1000 : 10000;
+  let outlierCount = 0;
+  
+  for (let idx = 0; idx < statsList.length && outlierCount < maxOutliers; idx++) {
+    const stats = statsList[idx];
+    for (const outlier of stats.outliers) {
+      if (outlierCount >= maxOutliers) break;
+      outliers.push([idx, outlier]);
+      outlierCount++;
+    }
+  }
+  
+  // 大数据量时优化 label 显示
+  const labelInterval = groupNames.value.length > 100 ? Math.floor(groupNames.value.length / 50) : 'auto';
   
   return {
-    grid: { left: '3%', right: '4%', bottom: '10%', top: '10%', containLabel: true },
-    xAxis: { type: 'value', name: '值' },
-    yAxis: { type: 'category', data: ['箱线图'] },
-    tooltip: { trigger: 'item' },
-    series: [{
-      type: 'custom',
-      renderItem: (params: any, api: any) => {
-        const categoryIndex = api.value(0);
-        const min = api.coord([stats.min, categoryIndex]);
-        const q1 = api.coord([stats.q1, categoryIndex]);
-        const median = api.coord([stats.median, categoryIndex]);
-        const q3 = api.coord([stats.q3, categoryIndex]);
-        const max = api.coord([stats.max, categoryIndex]);
-        
-        const height = 40;
-        
-        return {
-          type: 'group',
-          children: [
-            // 须线 - 左侧
-            {
-              type: 'line',
-              shape: { x1: min[0], y1: min[1], x2: q1[0], y2: q1[1] },
-              style: { stroke: '#5470c6', lineWidth: 2 }
-            },
-            // 须线 - 右侧
-            {
-              type: 'line',
-              shape: { x1: q3[0], y1: q3[1], x2: max[0], y2: max[1] },
-              style: { stroke: '#5470c6', lineWidth: 2 }
-            },
-            // 须端点 - 左
-            {
-              type: 'line',
-              shape: { x1: min[0], y1: min[1] - height/4, x2: min[0], y2: min[1] + height/4 },
-              style: { stroke: '#5470c6', lineWidth: 2 }
-            },
-            // 须端点 - 右
-            {
-              type: 'line',
-              shape: { x1: max[0], y1: max[1] - height/4, x2: max[0], y2: max[1] + height/4 },
-              style: { stroke: '#5470c6', lineWidth: 2 }
-            },
-            // 箱体
-            {
-              type: 'rect',
-              shape: { x: q1[0], y: q1[1] - height/2, width: q3[0] - q1[0], height: height },
-              style: { fill: '#91cc75', stroke: '#5470c6', lineWidth: 2 }
-            },
-            // 中位数线
-            {
-              type: 'line',
-              shape: { x1: median[0], y1: median[1] - height/2, x2: median[0], y2: median[1] + height/2 },
-              style: { stroke: '#e74c3c', lineWidth: 3 }
-            }
-          ]
-        };
+    grid: { left: '10%', right: '5%', bottom: '15%', top: '10%', containLabel: true },
+    xAxis: { 
+      type: 'category', 
+      data: groupNames.value,
+      boundaryGap: true,
+      axisLabel: { 
+        interval: labelInterval,
+        rotate: groupNames.value.length > 50 ? 0 : 45
+      }
+    },
+    yAxis: { 
+      type: 'value', 
+      name: '数值',
+      scale: true
+    },
+    tooltip: {
+      trigger: 'item',
+      formatter: (param: any) => {
+        if (param.seriesType === 'boxplot') {
+          return [
+            `组: ${groupNames.value[param.dataIndex]}`,
+            `最大值: ${param.data[5].toFixed(2)}`,
+            `Q3: ${param.data[4].toFixed(2)}`,
+            `中位数: ${param.data[3].toFixed(2)}`,
+            `Q1: ${param.data[2].toFixed(2)}`,
+            `最小值: ${param.data[1].toFixed(2)}`
+          ].join('<br/>');
+        }
+        return `${groupNames.value[param.data[0]]}: ${param.data[1].toFixed(2)}`;
+      }
+    },
+    dataZoom: [
+      { type: 'inside', xAxisIndex: 0, start: 0, end: 100 },
+      { type: 'slider', xAxisIndex: 0, start: 0, end: 100, bottom: 10 }
+    ],
+    series: [
+      {
+        name: '原始箱线图',
+        type: 'boxplot',
+        data: boxData,
+        itemStyle: {
+          color: '#5470c6',
+          borderColor: '#5470c6',
+          borderWidth: 2
+        },
+        emphasis: {
+          itemStyle: {
+            color: '#7b9ce1',
+            borderColor: '#5470c6'
+          }
+        },
+        animation: false
       },
-      data: [[0]],
-      animation: false
-    }, {
-      type: 'scatter',
-      data: stats.outliers.map(o => [o, 0]),
-      symbolSize: 8,
-      itemStyle: { color: '#e74c3c' },
-      animation: false
-    }]
+      {
+        name: '离群点',
+        type: 'scatter',
+        data: outliers,
+        symbolSize: groupNames.value.length > 1000 ? 4 : 6,
+        itemStyle: {
+          color: '#e74c3c'
+        },
+        animation: false,
+        progressive: 5000
+      }
+    ]
   };
 });
 
-const comparisonStats = computed(() => {
-  if (!boxPlotStats.value || originalData.value.length === 0) return [];
+// 降采样后箱线图配置
+const sampledChartOption = computed(() => {
+  // 准备箱线图数据 [min, Q1, median, Q3, max]
+  const boxData = boxPlotStatsList.value.map(stats => [
+    stats.min,
+    stats.q1,
+    stats.median,
+    stats.q3,
+    stats.max
+  ]);
   
-  const originalValues = originalData.value.map(d => d.y).sort((a, b) => a - b);
-  const n = originalValues.length;
+  // 准备离群点数据 - 大数据量时限制显示
+  const outliers: number[][] = [];
+  const maxOutliers = groupNames.value.length > 1000 ? 1000 : 10000;
+  let outlierCount = 0;
   
-  const originalStats = {
-    min: originalValues[0],
-    q1: originalValues[Math.floor(n * 0.25)],
-    median: originalValues[Math.floor(n * 0.5)],
-    q3: originalValues[Math.floor(n * 0.75)],
-    max: originalValues[n - 1]
+  for (let idx = 0; idx < boxPlotStatsList.value.length && outlierCount < maxOutliers; idx++) {
+    const stats = boxPlotStatsList.value[idx];
+    for (const outlier of stats.outliers) {
+      if (outlierCount >= maxOutliers) break;
+      outliers.push([idx, outlier]);
+      outlierCount++;
+    }
+  }
+  
+  // 大数据量时优化 label 显示
+  const labelInterval = groupNames.value.length > 100 ? Math.floor(groupNames.value.length / 50) : 'auto';
+  
+  return {
+    grid: { left: '10%', right: '5%', bottom: '15%', top: '10%', containLabel: true },
+    xAxis: { 
+      type: 'category', 
+      data: groupNames.value,
+      boundaryGap: true,
+      axisLabel: { 
+        interval: labelInterval,
+        rotate: groupNames.value.length > 50 ? 0 : 45
+      }
+    },
+    yAxis: { 
+      type: 'value', 
+      name: '数值',
+      scale: true
+    },
+    tooltip: {
+      trigger: 'item',
+      formatter: (param: any) => {
+        if (param.seriesType === 'boxplot') {
+          return [
+            `组: ${groupNames.value[param.dataIndex]}`,
+            `最大值: ${param.data[5].toFixed(2)}`,
+            `Q3: ${param.data[4].toFixed(2)}`,
+            `中位数: ${param.data[3].toFixed(2)}`,
+            `Q1: ${param.data[2].toFixed(2)}`,
+            `最小值: ${param.data[1].toFixed(2)}`
+          ].join('<br/>');
+        }
+        return `${groupNames.value[param.data[0]]}: ${param.data[1].toFixed(2)}`;
+      }
+    },
+    dataZoom: [
+      { type: 'inside', xAxisIndex: 0, start: 0, end: 100 },
+      { type: 'slider', xAxisIndex: 0, start: 0, end: 100, bottom: 10 }
+    ],
+    series: [
+      {
+        name: '箱线图',
+        type: 'boxplot',
+        data: boxData,
+        itemStyle: {
+          color: '#91cc75',
+          borderColor: '#5470c6',
+          borderWidth: 2
+        },
+        emphasis: {
+          itemStyle: {
+            color: '#b8e994',
+            borderColor: '#667eea'
+          }
+        },
+        animation: false
+      },
+      {
+        name: '离群点',
+        type: 'scatter',
+        data: outliers,
+        symbolSize: groupNames.value.length > 1000 ? 4 : 6,
+        itemStyle: {
+          color: '#e74c3c'
+        },
+        animation: false,
+        progressive: 5000
+      }
+    ]
   };
-  
-  const sampled = boxPlotStats.value;
-  
-  const calcError = (orig: number, samp: number) => Math.abs((samp - orig) / orig) * 100;
-  
-  return [
-    { name: '最小值', original: originalStats.min, sampled: sampled.min, error: calcError(originalStats.min, sampled.min) },
-    { name: 'Q1', original: originalStats.q1, sampled: sampled.q1, error: calcError(originalStats.q1, sampled.q1) },
-    { name: '中位数', original: originalStats.median, sampled: sampled.median, error: calcError(originalStats.median, sampled.median) },
-    { name: 'Q3', original: originalStats.q3, sampled: sampled.q3, error: calcError(originalStats.q3, sampled.q3) },
-    { name: '最大值', original: originalStats.max, sampled: sampled.max, error: calcError(originalStats.max, sampled.max) }
-  ];
 });
 
 function generateData() {
-  const groups = DataGenerator.generateBoxPlotData(1, parseInt(config.value.dataSize));
-  originalData.value = groups[0];
-  processDownsample();
+  const startTime = performance.now();
+  
+  // 使用配置的组数
+  const groupCount = config.value.groupCount || 20;
+  const dataSize = parseInt(config.value.dataSize);
+  const samplesPerGroup = Math.max(3, Math.floor(dataSize / groupCount));
+  
+  // 大数据量时使用 requestAnimationFrame 避免阻塞 UI
+  if (groupCount > 1000) {
+    requestAnimationFrame(() => {
+      generateDataAsync(groupCount, samplesPerGroup, startTime);
+    });
+  } else {
+    // 生成多组数据
+    const groups = DataGenerator.generateBoxPlotData(groupCount, samplesPerGroup);
+    originalGroups.value = groups;
+    
+    // 计算原始数据统计量
+    originalStatsList.value = computeStats(groups);
+    
+    console.log(`数据生成耗时: ${(performance.now() - startTime).toFixed(2)}ms, 组数: ${groupCount}, 每组样本: ${samplesPerGroup}`);
+    
+    processDownsample();
+  }
+}
+
+// 异步生成大数据集
+function generateDataAsync(groupCount: number, samplesPerGroup: number, startTime: number) {
+  const groups: DataPoint[][] = [];
+  const batchSize = 500; // 每批生成 500 组
+  let currentBatch = 0;
+  
+  function processBatch() {
+    const start = currentBatch * batchSize;
+    const end = Math.min(start + batchSize, groupCount);
+    
+    for (let g = start; g < end; g++) {
+      const group: DataPoint[] = [];
+      const baseValue = 50 + Math.random() * 30;
+      const spread = 10 + Math.random() * 20;
+      const skew = Math.random() > 0.5 ? 1 : -1;
+      
+      for (let i = 0; i < samplesPerGroup; i++) {
+        let y = DataGenerator.normal(baseValue, spread);
+        y += skew * Math.pow(Math.abs(y - baseValue), 1.2) * 0.1;
+        if (Math.random() < 0.05) {
+          y += (Math.random() > 0.5 ? 1 : -1) * (40 + Math.random() * 30);
+        }
+        group.push({ x: g, y });
+      }
+      groups.push(group);
+    }
+    
+    currentBatch++;
+    
+    if (end < groupCount) {
+      requestAnimationFrame(processBatch);
+    } else {
+      originalGroups.value = groups;
+      originalStatsList.value = computeStats(groups);
+      console.log(`数据生成耗时: ${(performance.now() - startTime).toFixed(2)}ms, 组数: ${groupCount}, 每组样本: ${samplesPerGroup}`);
+      processDownsample();
+    }
+  }
+  
+  processBatch();
 }
 
 function processDownsample() {
   const startTime = performance.now();
   
+  const statsList: BoxPlotSummary[] = [];
+  const sampled: DataPoint[][] = [];
+  
   let sampler;
   if (config.value.algorithm === 'box-stratified') {
     sampler = new BoxPlotStratifiedDownsampler();
-    sampledData.value = sampler.downsample(originalData.value, {
-      targetCount: config.value.targetCount
+    originalGroups.value.forEach(group => {
+      const sampledGroup = sampler.downsample(group, {
+        targetCount: Math.max(5, Math.floor(group.length * 0.1))
+      });
+      sampled.push(sampledGroup);
     });
   } else {
     sampler = new BoxPlotFiveNumberDownsampler();
-    sampledData.value = sampler.downsample(originalData.value, {
-      targetCount: 5 // 五数概括固定返回5个点
+    originalGroups.value.forEach(group => {
+      const sampledGroup = sampler.downsample(group, {
+        targetCount: 5
+      });
+      const stats = sampler.computeFiveNumberSummary(group, {});
+      statsList.push(stats);
+      sampled.push(sampledGroup);
     });
-    boxPlotStats.value = sampler.computeFiveNumberSummary(originalData.value, {});
   }
   
+  boxPlotStatsList.value = statsList;
+  sampledGroups.value = sampled;
   processingTime.value = performance.now() - startTime;
 }
 
 function onConfigChange() {
-  processDownsample();
+  // 如果组数发生变化，需要重新生成数据
+  const currentGroupCount = originalGroups.value.length;
+  if (config.value.groupCount !== currentGroupCount && originalGroups.value.length > 0) {
+    generateData();
+  } else {
+    processDownsample();
+  }
 }
 
 onMounted(() => {
@@ -264,69 +437,10 @@ onMounted(() => {
 }
 
 .chart {
-  height: 400px;
+  height: 450px;
 }
 
-.stats-comparison {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  padding: 20px;
-  margin-top: 20px;
-}
-
-.stats-comparison h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1a1a2e;
-  margin-bottom: 16px;
-}
-
-.stats-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.stat-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr;
-  gap: 16px;
-  padding: 12px 16px;
-  background: #f8f9fa;
-  border-radius: 6px;
-  align-items: center;
-}
-
-.stat-row.header {
-  background: #e9ecef;
-  font-weight: 600;
-  color: #495057;
-}
-
-.stat-name {
-  font-weight: 500;
-  color: #1a1a2e;
-}
-
-.stat-value {
-  font-family: monospace;
-  color: #495057;
-}
-
-.stat-error {
-  font-weight: 600;
-}
-
-.stat-error.low {
-  color: #27ae60;
-}
-
-.stat-error.medium {
-  color: #f39c12;
-}
-
-.stat-error.high {
-  color: #e74c3c;
+.full-width {
+  grid-column: 1 / -1;
 }
 </style>

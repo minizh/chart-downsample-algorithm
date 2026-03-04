@@ -7,6 +7,7 @@
     
     <div class="charts-grid">
       <ChartCard 
+        v-if="config.showOriginal"
         title="原始数据" 
         :info="originalInfo"
       >
@@ -16,6 +17,7 @@
       <ChartCard 
         title="降采样后" 
         :info="sampledInfo"
+        :class="{ 'full-width': !config.showOriginal }"
       >
         <v-chart class="chart" :option="sampledChartOption" autoresize />
       </ChartCard>
@@ -65,7 +67,8 @@ const config = ref({
   targetCount: 1000,
   algorithm: 'scatter-quadtree',
   aggregation: 'average',
-  preserveExtrema: true
+  preserveExtrema: true,
+  showOriginal: false
 });
 
 const originalData = ref<ScatterDataPoint[]>([]);
@@ -86,42 +89,57 @@ const sampledInfo = computed(() => ({
   duration: processingTime.value
 }));
 
-const originalChartOption = computed(() => ({
-  grid: { left: '3%', right: '8%', bottom: '15%', top: '10%', containLabel: true },
-  xAxis: { type: 'value', name: 'X' },
-  yAxis: { type: 'value', name: 'Y' },
-  tooltip: { trigger: 'item' },
-  dataZoom: [
-    { type: 'inside', xAxisIndex: 0 },
-    { type: 'inside', yAxisIndex: 0 }
-  ],
-  visualMap: {
-    min: 0,
-    max: 2,
-    dimension: 2,
-    orient: 'vertical',
-    right: 10,
-    top: 'center',
-    text: ['高密度', '低密度'],
-    calculable: true,
-    inRange: {
-      color: ['#50a3ba', '#eac736', '#d94e5d'],
-      opacity: [0.3, 1]
-    }
-  },
-  series: [{
-    type: 'scatter',
-    data: originalData.value.map(d => [d.x, d.y, 1]),
-    symbolSize: 4,
-    itemStyle: { opacity: 0.6 },
-    animation: false,
-    large: true,
-    largeThreshold: 5000
-  }]
-}));
+const originalChartOption = computed(() => {
+  const data = originalData.value;
+  // 大数据集限制显示点数
+  const step = Math.max(1, Math.floor(data.length / 50000));
+  const displayData = step > 1 
+    ? data.filter((_, i) => i % step === 0).map(d => [d.x, d.y, 1])
+    : data.map(d => [d.x, d.y, 1]);
+  
+  return {
+    grid: { left: '3%', right: '8%', bottom: '15%', top: '10%', containLabel: true },
+    xAxis: { type: 'value', name: 'X' },
+    yAxis: { type: 'value', name: 'Y' },
+    tooltip: { trigger: 'item' },
+    dataZoom: [
+      { type: 'inside', xAxisIndex: 0 },
+      { type: 'inside', yAxisIndex: 0 }
+    ],
+    visualMap: {
+      min: 0,
+      max: 2,
+      dimension: 2,
+      orient: 'vertical',
+      right: 10,
+      top: 'center',
+      text: ['高密度', '低密度'],
+      calculable: true,
+      inRange: {
+        color: ['#50a3ba', '#eac736', '#d94e5d'],
+        opacity: [0.3, 1]
+      }
+    },
+    series: [{
+      type: 'scatter',
+      data: displayData,
+      symbolSize: 4,
+      itemStyle: { opacity: 0.6 },
+      animation: false,
+      large: true,
+      largeThreshold: 5000,
+      progressive: 5000 // 渐进式渲染
+    }]
+  };
+});
 
 const sampledChartOption = computed(() => {
-  const maxDensity = Math.max(...sampledData.value.map(d => d.density || 1), 1);
+  // 优化：单次遍历计算最大密度
+  let maxDensity = 1;
+  for (const d of sampledData.value) {
+    const density = d.density || 1;
+    if (density > maxDensity) maxDensity = density;
+  }
   
   return {
     grid: { left: '3%', right: '8%', bottom: '15%', top: '10%', containLabel: true },
@@ -234,6 +252,10 @@ onMounted(() => {
 
 .chart {
   height: 400px;
+}
+
+.full-width {
+  grid-column: 1 / -1;
 }
 
 .density-legend {

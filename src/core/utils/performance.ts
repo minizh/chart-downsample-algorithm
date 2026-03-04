@@ -103,23 +103,66 @@ export class PerformanceMonitor {
 export class QualityMonitor {
   
   /**
-   * 分析降采样质量
+   * 分析降采样质量 - 优化：合并遍历减少计算量
    */
   analyze(original: DataPoint[], sampled: DataPoint[]): QualityFeedback {
     const compressionRatio = original.length / sampled.length;
+    const n = original.length;
+    const m = sampled.length;
+    
+    if (n === 0 || m === 0) {
+      return {
+        compressionRatio,
+        estimatedFidelity: 0,
+        trendSimilarity: 1,
+        keyPointsPreserved: 0,
+        recommendation: '数据为空'
+      };
+    }
+    
+    // 优化：单次遍历提取坐标并计算关键点
+    const originalCoords = new Array<{x: number, y: number}>(n);
+    const keyPoints: {x: number, y: number}[] = [];
+    
+    for (let i = 0; i < n; i++) {
+      const d = original[i];
+      originalCoords[i] = { x: d.x, y: d.y };
+      
+      // 检测关键点（局部极值）
+      if (i > 0 && i < n - 1) {
+        const prev = original[i - 1].y;
+        const curr = d.y;
+        const next = original[i + 1].y;
+        if ((curr > prev && curr > next) || (curr < prev && curr < next)) {
+          keyPoints.push({ x: d.x, y: d.y });
+        }
+      }
+    }
+    
+    // 提取采样数据坐标
+    const sampledCoords = new Array<{x: number, y: number}>(m);
+    for (let i = 0; i < m; i++) {
+      const d = sampled[i];
+      sampledCoords[i] = { x: d.x, y: d.y };
+    }
     
     // 计算 DTW 距离（简化版）
-    const dtwDistance = this.computeDTW(
-      original.map(d => ({ x: d.x, y: d.y })),
-      sampled.map(d => ({ x: d.x, y: d.y }))
-    );
-    const normalizedDTW = dtwDistance / Math.sqrt(original.length);
+    const dtwDistance = this.computeDTWFast(originalCoords, sampledCoords);
+    const normalizedDTW = dtwDistance / Math.sqrt(n);
     
-    // 检测关键点保留率
-    const keyPoints = this.detectKeyPoints(original);
-    const preservedKeyPoints = keyPoints.filter(kp => 
-      sampled.some(s => Math.abs(s.x - kp.x) < 0.01 * (original[original.length - 1].x - original[0].x))
-    );
+    // 计算关键点保留率
+    const xRange = originalCoords[n - 1].x - originalCoords[0].x;
+    const threshold = 0.01 * xRange;
+    
+    let preservedCount = 0;
+    for (const kp of keyPoints) {
+      for (const s of sampledCoords) {
+        if (Math.abs(s.x - kp.x) < threshold) {
+          preservedCount++;
+          break;
+        }
+      }
+    }
     
     const fidelity = Math.max(0, 1 - normalizedDTW * 10);
     
@@ -127,7 +170,7 @@ export class QualityMonitor {
       compressionRatio,
       estimatedFidelity: fidelity,
       trendSimilarity: normalizedDTW,
-      keyPointsPreserved: preservedKeyPoints.length / keyPoints.length,
+      keyPointsPreserved: keyPoints.length > 0 ? preservedCount / keyPoints.length : 1,
       recommendation: fidelity < 0.8 
         ? '建议降低采样率或切换算法' 
         : undefined
@@ -135,9 +178,9 @@ export class QualityMonitor {
   }
   
   /**
-   * 简化版 DTW 距离计算
+   * 快速 DTW 距离计算 - 优化版
    */
-  private computeDTW(original: DataPoint[], sampled: DataPoint[]): number {
+  private computeDTWFast(original: {x: number, y: number}[], sampled: {x: number, y: number}[]): number {
     const n = original.length;
     const m = sampled.length;
     
@@ -154,25 +197,6 @@ export class QualityMonitor {
     }
     
     return totalDist / m;
-  }
-  
-  /**
-   * 检测关键点（极值点）
-   */
-  private detectKeyPoints(data: DataPoint[]): DataPoint[] {
-    const keyPoints: DataPoint[] = [];
-    
-    for (let i = 1; i < data.length - 1; i++) {
-      const prev = data[i - 1].y;
-      const curr = data[i].y;
-      const next = data[i + 1].y;
-      
-      if ((curr > prev && curr > next) || (curr < prev && curr < next)) {
-        keyPoints.push(data[i]);
-      }
-    }
-    
-    return keyPoints;
   }
 }
 

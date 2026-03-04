@@ -15,27 +15,45 @@ interface BinningStrategy {
 }
 
 /**
- * 等宽分箱策略
+ * 等宽分箱策略 - 优化版
  */
 class EqualWidthStrategy implements BinningStrategy {
   createBins(data: BarDataPoint[], targetCount: number): Bin[] {
-    const xValues = data.map(d => d.x);
-    const minX = Math.min(...xValues);
-    const maxX = Math.max(...xValues);
+    const n = data.length;
+    
+    // 优化：使用 Float64Array 存储 x 值，提升内存访问效率
+    const xValues = new Float64Array(n);
+    let minX = Infinity, maxX = -Infinity;
+    
+    for (let i = 0; i < n; i++) {
+      const x = data[i].x;
+      xValues[i] = x;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+    }
+    
     const binWidth = (maxX - minX) / targetCount;
     
-    const bins: Bin[] = Array.from({ length: targetCount }, (_, i) => ({
-      xMin: minX + i * binWidth,
-      xMax: minX + (i + 1) * binWidth,
-      points: []
-    }));
+    // 预分配 bins 数组
+    const bins: Bin[] = new Array(targetCount);
+    for (let i = 0; i < targetCount; i++) {
+      bins[i] = {
+        xMin: minX + i * binWidth,
+        xMax: minX + (i + 1) * binWidth,
+        points: []
+      };
+    }
     
-    for (const point of data) {
+    // 分箱 - 使用局部变量缓存提升性能
+    const multiplier = 1 / binWidth;
+    const tCount = targetCount;
+    
+    for (let i = 0; i < n; i++) {
       const binIdx = Math.min(
-        Math.floor((point.x - minX) / binWidth),
-        targetCount - 1
+        Math.floor((xValues[i] - minX) * multiplier),
+        tCount - 1
       );
-      bins[binIdx].points.push(point);
+      bins[binIdx].points.push(data[i]);
     }
     
     return bins;
@@ -155,23 +173,46 @@ export class BarChartDownsampler extends Downsampler<BarDataPoint, BarDownsample
     // 执行分箱
     const bins = this.strategy.createBins(data, targetCount);
     
+    // 优化：创建 value->index 映射，避免 O(N^2) 的 indexOf 查找
+    const indexMap = preservePeaks ? this.buildIndexMap(data) : null;
+    
     // 聚合计算
-    return bins.map((bin, idx) => {
-      // 检查是否包含峰值
-      const peakIndices = bin.points
-        .map((_, i) => data.indexOf(bin.points[i]))
-        .filter(idx => peaks.has(idx));
-      
-      if (peakIndices.length > 0 && preservePeaks) {
-        // 峰值区域：保留极值
-        const maxPeak = peakIndices.reduce((maxIdx, currIdx) => 
-          data[currIdx].y > data[maxIdx].y ? currIdx : maxIdx
-        );
-        return { ...data[maxPeak], isPeak: true, originalCount: bin.points.length };
+    return bins.map((bin) => {
+      if (preservePeaks && bin.points.length > 0) {
+        // 检查是否包含峰值 - 使用 Map 进行 O(1) 查找
+        let hasPeak = false;
+        let maxPeakIdx = -1;
+        let maxPeakValue = -Infinity;
+        
+        for (const point of bin.points) {
+          const idx = indexMap!.get(point);
+          if (idx !== undefined && peaks.has(idx)) {
+            hasPeak = true;
+            if (point.y > maxPeakValue) {
+              maxPeakValue = point.y;
+              maxPeakIdx = idx;
+            }
+          }
+        }
+        
+        if (hasPeak && maxPeakIdx >= 0) {
+          return { ...data[maxPeakIdx], isPeak: true, originalCount: bin.points.length };
+        }
       }
       
       return this.aggregatePoints(bin.points, aggregation, (bin.xMin + bin.xMax) / 2);
     });
+  }
+  
+  /**
+   * 构建数据点到索引的映射 - 用于快速查找
+   */
+  private buildIndexMap(data: BarDataPoint[]): Map<BarDataPoint, number> {
+    const map = new Map<BarDataPoint, number>();
+    for (let i = 0; i < data.length; i++) {
+      map.set(data[i], i);
+    }
+    return map;
   }
   
   /**
@@ -201,41 +242,63 @@ export class BarChartDownsampler extends Downsampler<BarDataPoint, BarDownsample
   }
   
   /**
-   * 聚合数据点
+   * 聚合数据点 - 优化：避免创建中间数组，直接遍历
    */
   private aggregatePoints(
     points: BarDataPoint[], 
     method: AggregationType,
     x: number
   ): BarDataPoint {
-    if (points.length === 0) {
+    const len = points.length;
+    if (len === 0) {
       return { x, y: 0, originalCount: 0 };
     }
     
-    const values = points.map(p => p.y);
     let y: number;
     
     switch (method) {
-      case 'sum':
-        y = values.reduce((a, b) => a + b, 0);
+      case 'sum': {
+        let sum = 0;
+        for (let i = 0; i < len; i++) sum += points[i].y;
+        y = sum;
         break;
-      case 'average':
-        y = values.reduce((a, b) => a + b, 0) / values.length;
+      }
+      case 'average': {
+        let sum = 0;
+        for (let i = 0; i < len; i++) sum += points[i].y;
+        y = sum / len;
         break;
-      case 'max':
-        y = Math.max(...values);
+      }
+      case 'max': {
+        let max = points[0].y;
+        for (let i = 1; i < len; i++) {
+          if (points[i].y > max) max = points[i].y;
+        }
+        y = max;
         break;
-      case 'min':
-        y = Math.min(...values);
+      }
+      case 'min': {
+        let min = points[0].y;
+        for (let i = 1; i < len; i++) {
+          if (points[i].y < min) min = points[i].y;
+        }
+        y = min;
         break;
-      case 'median':
-        y = this.median(values);
+      }
+      case 'median': {
+        const values = new Float64Array(len);
+        for (let i = 0; i < len; i++) values[i] = points[i].y;
+        y = this.median(values as any);
         break;
-      default:
-        y = values.reduce((a, b) => a + b, 0) / values.length;
+      }
+      default: {
+        let sum = 0;
+        for (let i = 0; i < len; i++) sum += points[i].y;
+        y = sum / len;
+      }
     }
     
-    return { x, y, originalCount: points.length };
+    return { x, y, originalCount: len };
   }
 }
 
@@ -275,11 +338,14 @@ export class StackedBarDownsampler extends BarChartDownsampler {
     seriesData: BarDataPoint[][],
     options: BarDownsampleOptions
   ): BarDataPoint[][] {
-    // 合并所有系列的数据确定统一分箱边界
-    const allPoints = seriesData.flat();
-    const xValues = allPoints.map(p => p.x);
-    const minX = Math.min(...xValues);
-    const maxX = Math.max(...xValues);
+    // 合并所有系列的数据确定统一分箱边界 - 优化边界计算
+    let minX = Infinity, maxX = -Infinity;
+    for (const series of seriesData) {
+      for (const p of series) {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+      }
+    }
     const binWidth = (maxX - minX) / options.targetCount;
     
     // 为每个系列创建统一的分箱

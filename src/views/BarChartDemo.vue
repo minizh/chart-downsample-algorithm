@@ -7,6 +7,7 @@
     
     <div class="charts-grid">
       <ChartCard 
+        v-if="config.showOriginal"
         title="原始数据" 
         :info="originalInfo"
       >
@@ -16,6 +17,7 @@
       <ChartCard 
         title="降采样后" 
         :info="sampledInfo"
+        :class="{ 'full-width': !config.showOriginal }"
       >
         <v-chart class="chart" :option="sampledChartOption" autoresize />
       </ChartCard>
@@ -43,7 +45,8 @@ const config = ref({
   targetCount: 200,
   algorithm: 'bar-aggregation',
   aggregation: 'sum',
-  preserveExtrema: true
+  preserveExtrema: true,
+  showOriginal: false
 });
 
 const originalData = ref<BarDataPoint[]>([]);
@@ -64,26 +67,45 @@ const sampledInfo = computed(() => ({
   duration: processingTime.value
 }));
 
-const originalChartOption = computed(() => ({
-  grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
-  xAxis: { 
-    type: 'category', 
-    data: originalData.value.map(d => d.x.toString()),
-    axisLabel: { interval: Math.floor(originalData.value.length / 20) }
-  },
-  yAxis: { type: 'value' },
-  tooltip: { trigger: 'axis' },
-  dataZoom: [
-    { type: 'inside', start: 0, end: 10 },
-    { type: 'slider', start: 0, end: 10, bottom: 10 }
-  ],
-  series: [{
-    type: 'bar',
-    data: originalData.value.map(d => d.y),
-    itemStyle: { color: '#5470c6' },
-    animation: false
-  }]
-}));
+// 优化：使用 Object.freeze 防止大数据集的响应式劫持
+const frozenOriginalData = computed(() => {
+  if (originalData.value.length > 100000) {
+    return Object.freeze(originalData.value);
+  }
+  return originalData.value;
+});
+
+const originalChartOption = computed(() => {
+  const data = frozenOriginalData.value;
+  // 大数据集限制显示点数
+  const step = Math.max(1, Math.floor(data.length / 5000));
+  const sampledForDisplay = step > 1 
+    ? data.filter((_, i) => i % step === 0)
+    : data;
+  
+  return {
+    grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
+    xAxis: { 
+      type: 'category', 
+      data: sampledForDisplay.map(d => d.x.toString()),
+      axisLabel: { interval: 'auto' }
+    },
+    yAxis: { type: 'value' },
+    tooltip: { trigger: 'axis' },
+    dataZoom: [
+      { type: 'inside', start: 0, end: 10 },
+      { type: 'slider', start: 0, end: 10, bottom: 10 }
+    ],
+    series: [{
+      type: 'bar',
+      data: sampledForDisplay.map(d => d.y),
+      itemStyle: { color: '#5470c6' },
+      animation: false,
+      large: true,
+      largeThreshold: 500
+    }]
+  };
+});
 
 const sampledChartOption = computed(() => ({
   grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
@@ -116,30 +138,63 @@ const sampledChartOption = computed(() => ({
 }));
 
 function generateData() {
-  originalData.value = DataGenerator.generateBarData(parseInt(config.value.dataSize), {
-    pattern: 'peaks',
-    maxValue: 1000
-  });
-  processDownsample();
+  // 先清空数据，确保 UI 有响应
+  sampledData.value = [];
+  
+  // 使用 setTimeout 让 UI 有机会更新
+  setTimeout(() => {
+    const startTime = performance.now();
+    
+    try {
+      // 生成新数据
+      const newData = DataGenerator.generateBarData(parseInt(config.value.dataSize), {
+        pattern: 'peaks',
+        maxValue: 1000
+      });
+      
+      originalData.value = newData;
+      console.log(`数据生成耗时: ${(performance.now() - startTime).toFixed(2)}ms，数据量: ${newData.length}`);
+      
+      // 立即执行降采样
+      processDownsample();
+    } catch (error) {
+      console.error('数据生成失败:', error);
+    }
+  }, 10);
 }
 
 function processDownsample() {
   const startTime = performance.now();
   
-  let sampler;
-  if (config.value.algorithm === 'bar-peak-preserve') {
-    sampler = new BarPeakPreserveDownsampler();
-  } else {
-    sampler = new BarChartDownsampler();
+  try {
+    // 检查原始数据是否有效
+    if (!originalData.value || originalData.value.length === 0) {
+      console.warn('原始数据为空，跳过降采样');
+      return;
+    }
+    
+    let sampler;
+    if (config.value.algorithm === 'bar-peak-preserve') {
+      sampler = new BarPeakPreserveDownsampler();
+    } else {
+      sampler = new BarChartDownsampler();
+    }
+    
+    const result = sampler.downsample(originalData.value, {
+      targetCount: config.value.targetCount,
+      aggregation: config.value.aggregation as any,
+      preservePeaks: config.value.preserveExtrema
+    });
+    
+    // 确保响应式更新
+    sampledData.value = result;
+    processingTime.value = performance.now() - startTime;
+    
+    console.log(`降采样完成: ${originalData.value.length} -> ${result.length} 点, 耗时: ${processingTime.value.toFixed(2)}ms`);
+  } catch (error) {
+    console.error('降采样失败:', error);
+    sampledData.value = [];
   }
-  
-  sampledData.value = sampler.downsample(originalData.value, {
-    targetCount: config.value.targetCount,
-    aggregation: config.value.aggregation as any,
-    preservePeaks: config.value.preserveExtrema
-  });
-  
-  processingTime.value = performance.now() - startTime;
 }
 
 function onConfigChange() {
@@ -179,5 +234,9 @@ onMounted(() => {
 
 .chart {
   height: 400px;
+}
+
+.full-width {
+  grid-column: 1 / -1;
 }
 </style>

@@ -49,7 +49,7 @@ class Quadtree {
     y: number, 
     width: number, 
     height: number,
-    depth: number
+    _depth: number
   ): QuadtreeNode {
     return {
       x, y, width, height,
@@ -234,50 +234,67 @@ export class ScatterQuadtreeDownsampler extends Downsampler<ScatterDataPoint, Sc
   }
   
   /**
-   * 从节点中选择代表点
+   * 从节点中选择代表点 - 优化：减少重复遍历
    */
   private selectFromNode(node: QuadtreeNode, count: number): ScatterDataPoint[] {
-    if (node.points.length <= count) {
+    const nodePointCount = node.points.length;
+    
+    if (nodePointCount <= count) {
       return node.points.map(p => ({
         ...p,
-        density: node.points.length
+        density: nodePointCount
       }));
     }
     
-    // 选择质心作为代表点
-    const centerX = node.points.reduce((s, p) => s + p.x, 0) / node.points.length;
-    const centerY = node.points.reduce((s, p) => s + p.y, 0) / node.points.length;
+    // 单次遍历计算质心和边界
+    let sumX = 0, sumY = 0;
+    let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+    
+    for (const p of node.points) {
+      sumX += p.x;
+      sumY += p.y;
+      if (p.x < xMin) xMin = p.x;
+      if (p.x > xMax) xMax = p.x;
+      if (p.y < yMin) yMin = p.y;
+      if (p.y > yMax) yMax = p.y;
+    }
+    
+    const centerX = sumX / nodePointCount;
+    const centerY = sumY / nodePointCount;
     
     // 找到最接近质心的点
-    const representative = node.points.reduce((closest, p) => {
-      const distToCenter = Math.pow(p.x - centerX, 2) + Math.pow(p.y - centerY, 2);
-      const closestDist = Math.pow(closest.x - centerX, 2) + Math.pow(closest.y - centerY, 2);
-      return distToCenter < closestDist ? p : closest;
-    });
+    let representative = node.points[0];
+    let minDist = Infinity;
+    
+    for (const p of node.points) {
+      const dist = Math.pow(p.x - centerX, 2) + Math.pow(p.y - centerY, 2);
+      if (dist < minDist) {
+        minDist = dist;
+        representative = p;
+      }
+    }
     
     return [{
       ...representative,
-      density: node.points.length,
-      xMin: Math.min(...node.points.map(p => p.x)),
-      xMax: Math.max(...node.points.map(p => p.x)),
-      yMin: Math.min(...node.points.map(p => p.y)),
-      yMax: Math.max(...node.points.map(p => p.y))
+      density: nodePointCount,
+      xMin, xMax, yMin, yMax
     }];
   }
   
   /**
-   * 计算数据边界
+   * 计算数据边界 - 优化：避免展开运算符导致的栈溢出
    */
   private getBounds(data: ScatterDataPoint[]): Bounds {
-    const xValues = data.map(d => d.x);
-    const yValues = data.map(d => d.y);
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     
-    return {
-      minX: Math.min(...xValues),
-      maxX: Math.max(...xValues),
-      minY: Math.min(...yValues),
-      maxY: Math.max(...yValues)
-    };
+    for (const d of data) {
+      if (d.x < minX) minX = d.x;
+      if (d.x > maxX) maxX = d.x;
+      if (d.y < minY) minY = d.y;
+      if (d.y > maxY) maxY = d.y;
+    }
+    
+    return { minX, maxX, minY, maxY };
   }
 }
 
@@ -312,32 +329,40 @@ export class ScatterGridDownsampler extends Downsampler<ScatterDataPoint, Scatte
     }
     
     // 每格选取代表点
-    return Array.from(grid.entries()).map(([key, points]) => {
-      const avgX = points.reduce((s, p) => s + p.x, 0) / points.length;
-      const avgY = points.reduce((s, p) => s + p.y, 0) / points.length;
+    return Array.from(grid.entries()).map(([, points]) => {
+      // 优化：单次遍历计算平均值和边界
+      let sumX = 0, sumY = 0;
+      let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+      
+      for (const p of points) {
+        sumX += p.x;
+        sumY += p.y;
+        if (p.x < xMin) xMin = p.x;
+        if (p.x > xMax) xMax = p.x;
+        if (p.y < yMin) yMin = p.y;
+        if (p.y > yMax) yMax = p.y;
+      }
       
       return {
-        x: avgX,
-        y: avgY,
+        x: sumX / points.length,
+        y: sumY / points.length,
         density: points.length,
-        xMin: Math.min(...points.map(p => p.x)),
-        xMax: Math.max(...points.map(p => p.x)),
-        yMin: Math.min(...points.map(p => p.y)),
-        yMax: Math.max(...points.map(p => p.y))
+        xMin, xMax, yMin, yMax
       };
     });
   }
   
   private getBounds(data: ScatterDataPoint[]): Bounds {
-    const xValues = data.map(d => d.x);
-    const yValues = data.map(d => d.y);
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     
-    return {
-      minX: Math.min(...xValues),
-      maxX: Math.max(...xValues),
-      minY: Math.min(...yValues),
-      maxY: Math.max(...yValues)
-    };
+    for (const d of data) {
+      if (d.x < minX) minX = d.x;
+      if (d.x > maxX) maxX = d.x;
+      if (d.y < minY) minY = d.y;
+      if (d.y > maxY) maxY = d.y;
+    }
+    
+    return { minX, maxX, minY, maxY };
   }
 }
 
@@ -363,31 +388,46 @@ export class ScatterKDEWeightedDownsampler extends Downsampler<ScatterDataPoint,
     const weights = densities.map(d => 1 / (d + 1e-10));
     const totalWeight = weights.reduce((a, b) => a + b, 0);
     
-    // 加权随机采样
+    // 加权随机采样 - 优化：使用累积分布和二分查找，避免 O(N^2)
     const result: ScatterDataPoint[] = [];
-    const normalizedWeights = weights.map(w => w / totalWeight);
+    const n = data.length;
     
-    // 使用轮盘赌选择
-    for (let i = 0; i < targetCount && i < data.length; i++) {
-      let r = Math.random();
-      let cumSum = 0;
-      
-      for (let j = 0; j < data.length; j++) {
-        cumSum += normalizedWeights[j];
-        if (r <= cumSum) {
-          result.push({
-            ...data[j],
-            density: densities[j]
-          });
-          // 降低已选点的权重（不放回）
-          normalizedWeights[j] = 0;
-          const newTotal = normalizedWeights.reduce((a, b) => a + b, 0);
-          for (let k = 0; k < normalizedWeights.length; k++) {
-            normalizedWeights[k] /= newTotal || 1;
-          }
-          break;
+    // 构建累积分布数组
+    const cumDist = new Float64Array(n);
+    let cumSum = 0;
+    for (let i = 0; i < n; i++) {
+      cumSum += weights[i] / totalWeight;
+      cumDist[i] = cumSum;
+    }
+    
+    // 使用 Fisher-Yates 洗牌思路进行不放回采样
+    const indices = new Int32Array(n);
+    for (let i = 0; i < n; i++) indices[i] = i;
+    
+    for (let i = 0; i < targetCount && i < n; i++) {
+      const r = Math.random();
+      // 二分查找
+      let left = i, right = n - 1, idx = i;
+      while (left <= right) {
+        const mid = (left + right) >> 1;
+        if (cumDist[mid] <= r) {
+          idx = mid + 1;
+          left = mid + 1;
+        } else {
+          idx = mid;
+          right = mid - 1;
         }
       }
+      idx = Math.min(idx, n - 1);
+      
+      // 交换已选索引到前面
+      const selectedIdx = indices[idx];
+      indices[idx] = indices[i];
+      
+      result.push({
+        ...data[selectedIdx],
+        density: densities[selectedIdx]
+      });
     }
     
     return result;
@@ -407,14 +447,20 @@ export class ScatterKDEWeightedDownsampler extends Downsampler<ScatterDataPoint,
   }
   
   private stdDev(values: number[]): number {
-    const mean = values.reduce((a, b) => a + b, 0) / values.length;
-    const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / values.length;
-    return Math.sqrt(variance);
+    // 优化：单次遍历计算标准差
+    let sum = 0, sumSq = 0;
+    for (const v of values) {
+      sum += v;
+      sumSq += v * v;
+    }
+    const n = values.length;
+    const mean = sum / n;
+    return Math.sqrt(Math.max(0, sumSq / n - mean * mean));
   }
   
   private estimateDensities(
     data: ScatterDataPoint[], 
-    bandwidth: number,
+    _bandwidth: number,
     bounds: Bounds
   ): number[] {
     // 简化的密度估计：使用网格计数
@@ -436,15 +482,16 @@ export class ScatterKDEWeightedDownsampler extends Downsampler<ScatterDataPoint,
   }
   
   private getBounds(data: ScatterDataPoint[]): Bounds {
-    const xValues = data.map(d => d.x);
-    const yValues = data.map(d => d.y);
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     
-    return {
-      minX: Math.min(...xValues),
-      maxX: Math.max(...xValues),
-      minY: Math.min(...yValues),
-      maxY: Math.max(...yValues)
-    };
+    for (const d of data) {
+      if (d.x < minX) minX = d.x;
+      if (d.x > maxX) maxX = d.x;
+      if (d.y < minY) minY = d.y;
+      if (d.y > maxY) maxY = d.y;
+    }
+    
+    return { minX, maxX, minY, maxY };
   }
 }
 

@@ -4,8 +4,11 @@
       <label class="control-label">数据规模</label>
       <select v-model="localConfig.dataSize" class="control-select" @change="emitChange">
         <option value="1000">1,000</option>
+        <option value="5000">5,000</option>
         <option value="10000">10,000</option>
+        <option value="50000">50,000</option>
         <option value="100000">100,000</option>
+        <option value="500000">500,000</option>
         <option value="1000000">1,000,000</option>
       </select>
     </div>
@@ -69,6 +72,32 @@
       </label>
     </div>
     
+    <div class="control-group checkbox">
+      <label class="control-checkbox">
+        <input 
+          type="checkbox" 
+          v-model="localConfig.showOriginal"
+          @change="emitChange"
+        />
+        <span>显示原始数据</span>
+      </label>
+    </div>
+    
+    <div class="control-group" v-if="showGroupCount">
+      <label class="control-label">组数</label>
+      <input 
+        type="range" 
+        v-model.number="localConfig.groupCount" 
+        :min="5" 
+        :max="10000" 
+        :step="10"
+        class="control-slider"
+        style="width: 200px;"
+        @input="emitChange"
+      />
+      <span class="control-value">{{ localConfig.groupCount || 20 }}</span>
+    </div>
+    
     <button class="btn-refresh" @click="$emit('refresh')">
       <svg viewBox="0 0 24 24" width="16" height="16">
         <path fill="currentColor" d="M17.65 6.35A7.95 7.95 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
@@ -87,6 +116,8 @@ interface Config {
   algorithm: string;
   aggregation: string;
   preserveExtrema: boolean;
+  showOriginal: boolean;
+  groupCount?: number;
 }
 
 const props = defineProps<{
@@ -103,6 +134,10 @@ const localConfig = reactive({ ...props.modelValue });
 
 const showAggregation = computed(() => {
   return props.modelValue.algorithm.includes('bar');
+});
+
+const showGroupCount = computed(() => {
+  return props.modelValue.algorithm.includes('box');
 });
 
 watch(() => props.modelValue, (newVal) => {
