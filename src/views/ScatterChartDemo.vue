@@ -74,12 +74,13 @@ const config = ref({
 const originalData = ref<ScatterDataPoint[]>([]);
 const sampledData = ref<ScatterDataPoint[]>([]);
 const processingTime = ref(0);
+const originalDataGenTime = ref(0);
 
 const originalInfo = computed(() => ({
   originalCount: originalData.value.length,
   sampledCount: originalData.value.length,
   compressionRatio: 1,
-  duration: 0
+  duration: originalDataGenTime.value
 }));
 
 const sampledInfo = computed(() => ({
@@ -184,11 +185,13 @@ const sampledChartOption = computed(() => {
 });
 
 function generateData() {
+  const startTime = performance.now();
   originalData.value = DataGenerator.generateScatterData(parseInt(config.value.dataSize), {
     clusters: 4,
     clusterSpread: 8,
     includeNoise: true
   });
+  originalDataGenTime.value = performance.now() - startTime;
   processDownsample();
 }
 

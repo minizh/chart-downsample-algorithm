@@ -56,6 +56,7 @@ const sampledGroups = ref<DataPoint[][]>([]);
 const boxPlotStatsList = ref<BoxPlotSummary[]>([]);
 const originalStatsList = ref<BoxPlotSummary[]>([]);
 const processingTime = ref(0);
+const originalDataGenTime = ref(0);
 
 const totalOriginalCount = computed(() => 
   originalGroups.value.reduce((sum, group) => sum + group.length, 0)
@@ -69,7 +70,7 @@ const originalInfo = computed(() => ({
   originalCount: totalOriginalCount.value,
   sampledCount: totalOriginalCount.value,
   compressionRatio: 1,
-  duration: 0
+  duration: originalDataGenTime.value
 }));
 
 const sampledInfo = computed(() => ({
@@ -315,7 +316,8 @@ function generateData() {
     // 计算原始数据统计量
     originalStatsList.value = computeStats(groups);
     
-    console.log(`数据生成耗时: ${(performance.now() - startTime).toFixed(2)}ms, 组数: ${groupCount}, 每组样本: ${samplesPerGroup}`);
+    originalDataGenTime.value = performance.now() - startTime;
+    console.log(`数据生成耗时: ${originalDataGenTime.value.toFixed(2)}ms, 组数: ${groupCount}, 每组样本: ${samplesPerGroup}`);
     
     processDownsample();
   }
@@ -328,6 +330,7 @@ function generateDataAsync(groupCount: number, samplesPerGroup: number, startTim
   let currentBatch = 0;
   
   function processBatch() {
+    const batchStartTime = performance.now();
     const start = currentBatch * batchSize;
     const end = Math.min(start + batchSize, groupCount);
     
@@ -355,7 +358,8 @@ function generateDataAsync(groupCount: number, samplesPerGroup: number, startTim
     } else {
       originalGroups.value = groups;
       originalStatsList.value = computeStats(groups);
-      console.log(`数据生成耗时: ${(performance.now() - startTime).toFixed(2)}ms, 组数: ${groupCount}, 每组样本: ${samplesPerGroup}`);
+      originalDataGenTime.value = performance.now() - startTime;
+      console.log(`数据生成耗时: ${originalDataGenTime.value.toFixed(2)}ms, 组数: ${groupCount}, 每组样本: ${samplesPerGroup}`);
       processDownsample();
     }
   }

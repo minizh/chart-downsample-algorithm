@@ -52,12 +52,13 @@ const config = ref({
 const originalData = ref<BarDataPoint[]>([]);
 const sampledData = ref<BarDataPoint[]>([]);
 const processingTime = ref(0);
+const originalDataGenTime = ref(0);
 
 const originalInfo = computed(() => ({
   originalCount: originalData.value.length,
   sampledCount: originalData.value.length,
   compressionRatio: 1,
-  duration: 0
+  duration: originalDataGenTime.value
 }));
 
 const sampledInfo = computed(() => ({
@@ -153,7 +154,8 @@ function generateData() {
       });
       
       originalData.value = newData;
-      console.log(`数据生成耗时: ${(performance.now() - startTime).toFixed(2)}ms，数据量: ${newData.length}`);
+      originalDataGenTime.value = performance.now() - startTime;
+      console.log(`数据生成耗时: ${originalDataGenTime.value.toFixed(2)}ms，数据量: ${newData.length}`);
       
       // 立即执行降采样
       processDownsample();

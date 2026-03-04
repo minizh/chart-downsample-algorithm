@@ -72,12 +72,13 @@ const originalData = ref<DataPoint[]>([]);
 const sampledData = ref<DataPoint[]>([]);
 const processingTime = ref(0);
 const qualityMetrics = ref<QualityFeedback | null>(null);
+const originalDataGenTime = ref(0);
 
 const originalInfo = computed(() => ({
   originalCount: originalData.value.length,
   sampledCount: originalData.value.length,
   compressionRatio: 1,
-  duration: 0
+  duration: originalDataGenTime.value
 }));
 
 const sampledInfo = computed(() => ({
@@ -136,11 +137,13 @@ const sampledChartOption = computed(() => ({
 }));
 
 function generateData() {
+  const startTime = performance.now();
   originalData.value = DataGenerator.generateLineData(parseInt(config.value.dataSize), {
     trend: 'mixed',
     noise: 0.05,
     includePeaks: true
   });
+  originalDataGenTime.value = performance.now() - startTime;
   processDownsample();
 }
 
