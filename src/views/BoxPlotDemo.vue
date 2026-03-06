@@ -47,7 +47,8 @@ const config = ref({
   aggregation: 'average',
   preserveExtrema: true,
   showOriginal: false,
-  groupCount: 20
+  groupCount: 20,
+  maxOutliers: 1000
 });
 
 // 多组数据
@@ -112,19 +113,27 @@ const originalChartOption = computed(() => {
     stats.max
   ]);
   
-  // 准备离群点数据 - 大数据量时限制显示
+  // 准备离群点数据 - 使用可配置的最大离群点数，最大支持5万
   const outliers: number[][] = [];
-  const maxOutliers = groupNames.value.length > 1000 ? 1000 : 10000;
+  const maxOutliers = Math.min(50000, config.value.maxOutliers || 1000);
   let outlierCount = 0;
+  let totalStatsOutliers = 0;
+  let groupsWithOutliers = 0;
   
   for (let idx = 0; idx < statsList.length && outlierCount < maxOutliers; idx++) {
     const stats = statsList[idx];
+    if (stats.outliers.length > 0) {
+      groupsWithOutliers++;
+      totalStatsOutliers += stats.outliers.length;
+    }
     for (const outlier of stats.outliers) {
       if (outlierCount >= maxOutliers) break;
       outliers.push([idx, outlier]);
       outlierCount++;
     }
   }
+  
+  console.log(`原始数据: ${groupsWithOutliers}/${statsList.length} 组有离群点, 共 ${totalStatsOutliers} 个, 显示 ${outliers.length} 个`);
   
   // 大数据量时优化 label 显示
   const labelInterval = groupNames.value.length > 100 ? Math.floor(groupNames.value.length / 50) : 'auto';
@@ -187,12 +196,12 @@ const originalChartOption = computed(() => {
         name: '离群点',
         type: 'scatter',
         data: outliers,
-        symbolSize: groupNames.value.length > 1000 ? 4 : 6,
+        symbolSize: groupNames.value.length > 1000 ? 10 : 14,
         itemStyle: {
           color: '#e74c3c'
         },
         animation: false,
-        progressive: 5000
+        z: 10
       }
     ]
   };
@@ -209,19 +218,27 @@ const sampledChartOption = computed(() => {
     stats.max
   ]);
   
-  // 准备离群点数据 - 大数据量时限制显示
+  // 准备离群点数据 - 使用可配置的最大离群点数，最大支持5万
   const outliers: number[][] = [];
-  const maxOutliers = groupNames.value.length > 1000 ? 1000 : 10000;
+  const maxOutliers = Math.min(50000, config.value.maxOutliers || 1000);
   let outlierCount = 0;
+  let totalStatsOutliers = 0;
+  let groupsWithOutliers = 0;
   
   for (let idx = 0; idx < boxPlotStatsList.value.length && outlierCount < maxOutliers; idx++) {
     const stats = boxPlotStatsList.value[idx];
+    if (stats.outliers.length > 0) {
+      groupsWithOutliers++;
+      totalStatsOutliers += stats.outliers.length;
+    }
     for (const outlier of stats.outliers) {
       if (outlierCount >= maxOutliers) break;
       outliers.push([idx, outlier]);
       outlierCount++;
     }
   }
+  
+  console.log(`降采样后: ${groupsWithOutliers}/${boxPlotStatsList.value.length} 组有离群点, 共 ${totalStatsOutliers} 个, 显示 ${outliers.length} 个`);
   
   // 大数据量时优化 label 显示
   const labelInterval = groupNames.value.length > 100 ? Math.floor(groupNames.value.length / 50) : 'auto';
@@ -284,12 +301,12 @@ const sampledChartOption = computed(() => {
         name: '离群点',
         type: 'scatter',
         data: outliers,
-        symbolSize: groupNames.value.length > 1000 ? 4 : 6,
+        symbolSize: groupNames.value.length > 1000 ? 10 : 14,
         itemStyle: {
           color: '#e74c3c'
         },
         animation: false,
-        progressive: 5000
+        z: 10
       }
     ]
   };
@@ -301,7 +318,13 @@ function generateData() {
   // 使用配置的组数
   const groupCount = config.value.groupCount || 20;
   const dataSize = parseInt(config.value.dataSize);
-  const samplesPerGroup = Math.max(3, Math.floor(dataSize / groupCount));
+  // 确保每组至少有10个样本点，才能产生有效的离群点统计
+  const samplesPerGroup = Math.max(10, Math.floor(dataSize / groupCount));
+  
+  // 提示用户如果数据规模相对于组数太小
+  if (dataSize < groupCount * 10) {
+    console.warn(`提示: 当前数据规模 ${dataSize} 相对于组数 ${groupCount} 较小，建议增加数据规模或减少组数以获得更好的离群点效果`);
+  }
   
   // 大数据量时使用 requestAnimationFrame 避免阻塞 UI
   if (groupCount > 1000) {
@@ -330,7 +353,6 @@ function generateDataAsync(groupCount: number, samplesPerGroup: number, startTim
   let currentBatch = 0;
   
   function processBatch() {
-    const batchStartTime = performance.now();
     const start = currentBatch * batchSize;
     const end = Math.min(start + batchSize, groupCount);
     
@@ -343,8 +365,11 @@ function generateDataAsync(groupCount: number, samplesPerGroup: number, startTim
       for (let i = 0; i < samplesPerGroup; i++) {
         let y = DataGenerator.normal(baseValue, spread);
         y += skew * Math.pow(Math.abs(y - baseValue), 1.2) * 0.1;
-        if (Math.random() < 0.05) {
-          y += (Math.random() > 0.5 ? 1 : -1) * (40 + Math.random() * 30);
+        // 添加离群点 - 使用大偏移
+        if (Math.random() < 0.1) {
+          const direction = Math.random() > 0.5 ? 1 : -1;
+          const magnitude = spread * (3 + Math.random() * 2);
+          y = baseValue + direction * magnitude;
         }
         group.push({ x: g, y });
       }
@@ -377,17 +402,17 @@ function processDownsample() {
   if (config.value.algorithm === 'box-stratified') {
     sampler = new BoxPlotStratifiedDownsampler();
     originalGroups.value.forEach(group => {
-      const sampledGroup = sampler.downsample(group, {
-        targetCount: Math.max(5, Math.floor(group.length * 0.1))
-      });
+      // 确保 targetCount 在有效范围内 [2, group.length]
+      const targetCount = Math.max(2, Math.min(group.length, Math.floor(group.length * 0.1)));
+      const sampledGroup = sampler.downsample(group, { targetCount });
       sampled.push(sampledGroup);
     });
   } else {
     sampler = new BoxPlotFiveNumberDownsampler();
     originalGroups.value.forEach(group => {
-      const sampledGroup = sampler.downsample(group, {
-        targetCount: 5
-      });
+      // 五数概括需要至少 5 个点，如果数据不足则使用全部数据
+      const targetCount = Math.min(group.length, 5);
+      const sampledGroup = sampler.downsample(group, { targetCount });
       const stats = sampler.computeFiveNumberSummary(group, {});
       statsList.push(stats);
       sampled.push(sampledGroup);

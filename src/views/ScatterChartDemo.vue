@@ -198,6 +198,14 @@ function generateData() {
 function processDownsample() {
   const startTime = performance.now();
   
+  // 确保 targetCount 不超过原始数据长度
+  const dataLength = originalData.value.length;
+  const targetCount = Math.min(config.value.targetCount, dataLength);
+  
+  if (config.value.targetCount > dataLength) {
+    console.warn(`目标采样点 ${config.value.targetCount} 超过原始数据 ${dataLength}，自动调整为 ${targetCount}`);
+  }
+  
   let sampler;
   switch (config.value.algorithm) {
     case 'scatter-grid':
@@ -211,7 +219,7 @@ function processDownsample() {
   }
   
   sampledData.value = sampler.downsample(originalData.value, {
-    targetCount: config.value.targetCount,
+    targetCount,
     method: config.value.algorithm.replace('scatter-', '') as any
   });
   

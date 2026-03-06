@@ -175,6 +175,14 @@ function processDownsample() {
       return;
     }
     
+    // 确保 targetCount 不超过原始数据长度
+    const dataLength = originalData.value.length;
+    const targetCount = Math.min(config.value.targetCount, dataLength);
+    
+    if (config.value.targetCount > dataLength) {
+      console.warn(`目标采样点 ${config.value.targetCount} 超过原始数据 ${dataLength}，自动调整为 ${targetCount}`);
+    }
+    
     let sampler;
     if (config.value.algorithm === 'bar-peak-preserve') {
       sampler = new BarPeakPreserveDownsampler();
@@ -183,7 +191,7 @@ function processDownsample() {
     }
     
     const result = sampler.downsample(originalData.value, {
-      targetCount: config.value.targetCount,
+      targetCount,
       aggregation: config.value.aggregation as any,
       preservePeaks: config.value.preserveExtrema
     });

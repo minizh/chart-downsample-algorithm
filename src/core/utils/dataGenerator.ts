@@ -131,9 +131,12 @@ export class DataGenerator {
         // 添加偏斜
         y += skew * Math.pow(Math.abs(y - baseValue), 1.2) * 0.1;
         
-        // 添加离群点
-        if (Math.random() < 0.05) {
-          y += (Math.random() > 0.5 ? 1 : -1) * (40 + Math.random() * 30);
+        // 添加离群点 - 使用大偏移确保超出 whisker 范围
+        if (Math.random() < 0.1) {
+          const direction = Math.random() > 0.5 ? 1 : -1;
+          // 使用 3-5 倍 spread 的偏移，确保明显超出 IQR 范围
+          const magnitude = spread * (3 + Math.random() * 2);
+          y = baseValue + direction * magnitude;
         }
         
         group.push({ x: g, y });
