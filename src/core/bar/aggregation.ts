@@ -244,7 +244,7 @@ export class BarChartDownsampler extends Downsampler<BarDataPoint, BarDownsample
   /**
    * 聚合数据点 - 优化：避免创建中间数组，直接遍历
    */
-  private aggregatePoints(
+  protected aggregatePoints(
     points: BarDataPoint[], 
     method: AggregationType,
     x: number

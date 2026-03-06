@@ -399,26 +399,32 @@ function processDownsample() {
   const statsList: BoxPlotSummary[] = [];
   const sampled: DataPoint[][] = [];
   
-  let sampler: BoxPlotFiveNumberDownsampler | BoxPlotStratifiedDownsampler | BoxPlotStreamingDownsampler;
+  // 使用独立的统计计算器，不依赖具体降采样器类型
+  const statsCalculator = new BoxPlotFiveNumberDownsampler();
+  
   if (config.value.algorithm === AlgorithmType.BOX_STRATIFIED) {
-    sampler = new BoxPlotStratifiedDownsampler();
+    const sampler = new BoxPlotStratifiedDownsampler();
     originalGroups.value.forEach(group => {
       // 确保 targetCount 在有效范围内 [2, group.length]
       const targetCount = Math.max(2, Math.min(group.length, Math.floor(group.length * 0.1)));
       const sampledGroup = sampler.downsample(group, { targetCount });
+      // 使用独立的统计计算器计算五数概括
+      const stats = statsCalculator.computeFiveNumberSummary(group, {});
+      statsList.push(stats);
       sampled.push(sampledGroup);
     });
   } else if (config.value.algorithm === AlgorithmType.BOX_STREAMING) {
-    sampler = new BoxPlotStreamingDownsampler(10000);
+    const sampler = new BoxPlotStreamingDownsampler(10000);
     originalGroups.value.forEach(group => {
       const sampledGroup = sampler.downsample(group, {});
-      const stats = sampler.stats.toBoxPlotSummary();
+      // 使用独立的统计计算器计算五数概括
+      const stats = statsCalculator.computeFiveNumberSummary(group, {});
       statsList.push(stats);
       sampled.push(sampledGroup);
     });
   } else {
     // 默认 box-five-number
-    sampler = new BoxPlotFiveNumberDownsampler();
+    const sampler = new BoxPlotFiveNumberDownsampler();
     originalGroups.value.forEach(group => {
       // 五数概括需要至少 5 个点，如果数据不足则使用全部数据
       const targetCount = Math.min(group.length, 5);

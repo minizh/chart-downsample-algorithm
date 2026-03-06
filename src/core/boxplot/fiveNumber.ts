@@ -381,7 +381,7 @@ export class StreamingStats {
  * 流式箱线图降采样器
  */
 export class BoxPlotStreamingDownsampler extends Downsampler<DataPoint, BoxPlotOptions> {
-  private stats: StreamingStats;
+  public stats: StreamingStats;
   
   constructor(maxSamples: number = 10000) {
     super();
