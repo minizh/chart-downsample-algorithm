@@ -1,10 +1,10 @@
 import { Downsampler, DownsamplerFactory } from '../base';
-import { AlgorithmType } from '@types';
+import { AlgorithmType } from '@/types';
 import type { 
   DataPoint, 
   BoxPlotOptions, 
   BoxPlotSummary
-} from '@types';
+} from '@/types';
 
 /**
  * 五数概括法降采样器

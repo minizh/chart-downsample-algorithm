@@ -1,11 +1,11 @@
 import { Downsampler, DownsamplerFactory } from '../base';
-import { AlgorithmType } from '@types';
+import { AlgorithmType } from '@/types';
 import type { 
   BarDataPoint, 
   BarDownsampleOptions, 
   AggregationType,
   Bin
-} from '@types';
+} from '@/types';
 
 /**
  * 分箱策略接口

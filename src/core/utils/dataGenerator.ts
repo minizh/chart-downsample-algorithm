@@ -1,4 +1,4 @@
-import type { DataPoint, BarDataPoint, ScatterDataPoint } from '@types';
+import type { DataPoint, BarDataPoint, ScatterDataPoint } from '@/types';
 
 /**
  * 数据生成器

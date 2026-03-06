@@ -1,4 +1,4 @@
-import type { PerformanceMetrics, QualityFeedback, DataPoint } from '@types';
+import type { PerformanceMetrics, QualityFeedback, DataPoint } from '@/types';
 
 /**
  * 性能监控器

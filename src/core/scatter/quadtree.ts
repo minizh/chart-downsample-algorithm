@@ -1,11 +1,11 @@
 import { Downsampler, DownsamplerFactory } from '../base';
-import { AlgorithmType } from '@types';
+import { AlgorithmType } from '@/types';
 import type { 
   ScatterDataPoint, 
   ScatterOptions,
   Bounds,
   DBSCANParams
-} from '@types';
+} from '@/types';
 
 /**
  * 四叉树节点

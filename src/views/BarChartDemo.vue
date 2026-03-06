@@ -34,8 +34,8 @@ import { GridComponent, TooltipComponent, DataZoomComponent } from 'echarts/comp
 import VChart from 'vue-echarts';
 import { DataGenerator } from '@core/utils/dataGenerator';
 import { BarChartDownsampler, BarPeakPreserveDownsampler, BarAdaptiveDownsampler } from '@core/bar/aggregation';
-import { AlgorithmType } from '@types';
-import type { BarDataPoint } from '@types';
+import { AlgorithmType } from '@/types';
+import type { BarDataPoint } from '@/types';
 import ChartCard from '@components/ChartCard.vue';
 import ControlPanel from '@components/ControlPanel.vue';
 

@@ -57,8 +57,8 @@ import {
   ScatterKDEWeightedDownsampler,
   ScatterDBSCANDownsampler
 } from '@core/scatter/quadtree';
-import { AlgorithmType } from '@types';
-import type { ScatterDataPoint } from '@types';
+import { AlgorithmType } from '@/types';
+import type { ScatterDataPoint } from '@/types';
 import ChartCard from '@components/ChartCard.vue';
 import ControlPanel from '@components/ControlPanel.vue';
 

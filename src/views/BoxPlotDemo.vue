@@ -34,8 +34,8 @@ import { GridComponent, TooltipComponent, DataZoomComponent, TitleComponent } fr
 import VChart from 'vue-echarts';
 import { DataGenerator } from '@core/utils/dataGenerator';
 import { BoxPlotFiveNumberDownsampler, BoxPlotStratifiedDownsampler, BoxPlotStreamingDownsampler } from '@core/boxplot/fiveNumber';
-import { AlgorithmType } from '@types';
-import type { DataPoint, BoxPlotSummary } from '@types';
+import { AlgorithmType } from '@/types';
+import type { DataPoint, BoxPlotSummary } from '@/types';
 import ChartCard from '@components/ChartCard.vue';
 import ControlPanel from '@components/ControlPanel.vue';
 
@@ -399,7 +399,7 @@ function processDownsample() {
   const statsList: BoxPlotSummary[] = [];
   const sampled: DataPoint[][] = [];
   
-  let sampler;
+  let sampler: BoxPlotFiveNumberDownsampler | BoxPlotStratifiedDownsampler | BoxPlotStreamingDownsampler;
   if (config.value.algorithm === AlgorithmType.BOX_STRATIFIED) {
     sampler = new BoxPlotStratifiedDownsampler();
     originalGroups.value.forEach(group => {

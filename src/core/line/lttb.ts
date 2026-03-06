@@ -1,5 +1,5 @@
 import { Downsampler } from '../base';
-import type { DataPoint, LTTBOptions } from '@types';
+import type { DataPoint, LTTBOptions } from '@/types';
 
 /**
  * LTTB (Largest Triangle Three Buckets) 降采样算法

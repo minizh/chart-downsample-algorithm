@@ -53,8 +53,8 @@ import VChart from 'vue-echarts';
 import { DataGenerator } from '@core/utils/dataGenerator';
 import { LTTBDownsampler, LTTBEnhancedDownsampler } from '@core/line/lttb';
 import { QualityMonitor } from '@core/utils/performance';
-import { AlgorithmType } from '@types';
-import type { DataPoint, QualityFeedback } from '@types';
+import { AlgorithmType } from '@/types';
+import type { DataPoint, QualityFeedback } from '@/types';
 import ChartCard from '@components/ChartCard.vue';
 import ControlPanel from '@components/ControlPanel.vue';
 

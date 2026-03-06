@@ -35,7 +35,7 @@ export {
 
 // 注册所有算法
 import { DownsamplerFactory } from './base';
-import { AlgorithmType } from '@types';
+import { AlgorithmType } from '@/types';
 
 import { 
   LTTBDownsampler, 

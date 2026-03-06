@@ -1,9 +1,9 @@
-import { AlgorithmType } from '@types';
+import { AlgorithmType } from '@/types';
 import type { 
   DataPoint, 
   DownsampleOptions,
   ChartType
-} from '@types';
+} from '@/types';
 
 /**
  * 降采样器抽象基类
