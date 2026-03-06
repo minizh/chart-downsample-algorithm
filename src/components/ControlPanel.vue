@@ -32,20 +32,24 @@
       <select v-model="localConfig.algorithm" class="control-select" @change="emitChange">
         <optgroup label="折线图">
           <option value="lttb">LTTB 标准版</option>
+          <option value="lttb-single">LTTB 单桶版</option>
           <option value="lttb-enhanced">LTTB 增强版</option>
         </optgroup>
         <optgroup label="柱状图">
           <option value="bar-aggregation">等宽聚合</option>
+          <option value="bar-adaptive">自适应聚合</option>
           <option value="bar-peak-preserve">峰值保留</option>
         </optgroup>
         <optgroup label="箱线图">
           <option value="box-five-number">五数概括</option>
           <option value="box-stratified">分层采样</option>
+          <option value="box-streaming">流式计算</option>
         </optgroup>
         <optgroup label="散点图">
           <option value="scatter-quadtree">四叉树</option>
           <option value="scatter-grid">网格聚合</option>
           <option value="scatter-kde">KDE加权</option>
+          <option value="scatter-dbscan">DBSCAN聚类</option>
         </optgroup>
       </select>
     </div>

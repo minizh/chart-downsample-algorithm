@@ -555,23 +555,88 @@ export class ScatterDBSCANDownsampler extends Downsampler<ScatterDataPoint, Scat
   private dbscan(data: ScatterDataPoint[], params: DBSCANParams): number[] {
     const n = data.length;
     const labels = new Array(n).fill(-2); // -2: 未访问
+    
+    // 使用网格索引加速邻居查询
+    const gridIndex = this.buildGridIndex(data, params.epsilon);
+    
     let clusterId = 0;
     
     for (let i = 0; i < n; i++) {
       if (labels[i] !== -2) continue;
       
-      const neighbors = this.getNeighbors(data, i, params.epsilon);
+      const neighbors = this.getNeighborsFromGrid(data, i, params.epsilon, gridIndex);
       
       if (neighbors.length < params.minPoints) {
         labels[i] = -1; // 标记为噪声
         continue;
       }
       
-      this.expandCluster(data, labels, i, neighbors, clusterId, params);
+      this.expandCluster(data, labels, i, neighbors, clusterId, params, gridIndex);
       clusterId++;
     }
     
     return labels;
+  }
+  
+  // 构建网格索引
+  private buildGridIndex(data: ScatterDataPoint[], epsilon: number): Map<string, number[]> {
+    const grid = new Map<string, number[]>();
+    
+    for (let i = 0; i < data.length; i++) {
+      const key = this.getGridKey(data[i], epsilon);
+      if (!grid.has(key)) {
+        grid.set(key, []);
+      }
+      grid.get(key)!.push(i);
+    }
+    
+    return grid;
+  }
+  
+  // 获取网格坐标key
+  private getGridKey(point: ScatterDataPoint, epsilon: number): string {
+    const x = Math.floor(point.x / epsilon);
+    const y = Math.floor(point.y / epsilon);
+    return `${x},${y}`;
+  }
+  
+  // 从网格索引中获取邻居
+  private getNeighborsFromGrid(
+    data: ScatterDataPoint[], 
+    idx: number, 
+    epsilon: number,
+    grid: Map<string, number[]>
+  ): number[] {
+    const point = data[idx];
+    const neighbors: number[] = [];
+    
+    // 只检查相邻的9个网格
+    const gx = Math.floor(point.x / epsilon);
+    const gy = Math.floor(point.y / epsilon);
+    
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const key = `${gx + dx},${gy + dy}`;
+        const cell = grid.get(key);
+        if (cell) {
+          for (const i of cell) {
+            if (i === idx) continue;
+            
+            // 精确距离检查
+            const dist = Math.sqrt(
+              Math.pow(data[i].x - point.x, 2) + 
+              Math.pow(data[i].y - point.y, 2)
+            );
+            
+            if (dist <= epsilon) {
+              neighbors.push(i);
+            }
+          }
+        }
+      }
+    }
+    
+    return neighbors;
   }
   
   private expandCluster(
@@ -580,7 +645,8 @@ export class ScatterDBSCANDownsampler extends Downsampler<ScatterDataPoint, Scat
     coreIdx: number,
     neighbors: number[],
     clusterId: number,
-    params: DBSCANParams
+    params: DBSCANParams,
+    gridIndex: Map<string, number[]>
   ): void {
     labels[coreIdx] = clusterId;
     
@@ -597,31 +663,11 @@ export class ScatterDBSCANDownsampler extends Downsampler<ScatterDataPoint, Scat
       
       labels[pointIdx] = clusterId;
       
-      const newNeighbors = this.getNeighbors(data, pointIdx, params.epsilon);
+      const newNeighbors = this.getNeighborsFromGrid(data, pointIdx, params.epsilon, gridIndex);
       if (newNeighbors.length >= params.minPoints) {
         queue.push(...newNeighbors);
       }
     }
-  }
-  
-  private getNeighbors(data: ScatterDataPoint[], idx: number, epsilon: number): number[] {
-    const point = data[idx];
-    const neighbors: number[] = [];
-    
-    for (let i = 0; i < data.length; i++) {
-      if (i === idx) continue;
-      
-      const dist = Math.sqrt(
-        Math.pow(data[i].x - point.x, 2) + 
-        Math.pow(data[i].y - point.y, 2)
-      );
-      
-      if (dist <= epsilon) {
-        neighbors.push(i);
-      }
-    }
-    
-    return neighbors;
   }
   
   private selectBoundaryPoints(points: ScatterDataPoint[], count: number): ScatterDataPoint[] {

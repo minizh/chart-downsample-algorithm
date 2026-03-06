@@ -53,6 +53,7 @@ import VChart from 'vue-echarts';
 import { DataGenerator } from '@core/utils/dataGenerator';
 import { LTTBDownsampler, LTTBEnhancedDownsampler } from '@core/line/lttb';
 import { QualityMonitor } from '@core/utils/performance';
+import { AlgorithmType } from '@types';
 import type { DataPoint, QualityFeedback } from '@types';
 import ChartCard from '@components/ChartCard.vue';
 import ControlPanel from '@components/ControlPanel.vue';
@@ -62,7 +63,7 @@ use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, DataZoomCompone
 const config = ref({
   dataSize: '10000',
   targetCount: 1000,
-  algorithm: 'lttb',
+  algorithm: AlgorithmType.LTTB,
   aggregation: 'average',
   preserveExtrema: true,
   showOriginal: false
@@ -159,16 +160,20 @@ function processDownsample() {
   }
   
   let sampler;
-  if (config.value.algorithm === 'lttb-enhanced') {
+  let options: any = { targetCount, preserveExtrema: config.value.preserveExtrema };
+  
+  if (config.value.algorithm === AlgorithmType.LTTB_ENHANCED) {
     sampler = new LTTBEnhancedDownsampler();
-  } else {
+  } else if (config.value.algorithm === AlgorithmType.LTTB_SINGLE_BUCKET) {
     sampler = new LTTBDownsampler();
+    options.useSingleBucket = true;
+  } else {
+    // 默认 LTTB 标准版
+    sampler = new LTTBDownsampler();
+    options.useSingleBucket = false;
   }
   
-  sampledData.value = sampler.downsample(originalData.value, {
-    targetCount,
-    preserveExtrema: config.value.preserveExtrema
-  });
+  sampledData.value = sampler.downsample(originalData.value, options);
   
   processingTime.value = performance.now() - startTime;
   

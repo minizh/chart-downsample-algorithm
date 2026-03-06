@@ -33,7 +33,8 @@ import { BoxplotChart, ScatterChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent, DataZoomComponent, TitleComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
 import { DataGenerator } from '@core/utils/dataGenerator';
-import { BoxPlotFiveNumberDownsampler, BoxPlotStratifiedDownsampler } from '@core/boxplot/fiveNumber';
+import { BoxPlotFiveNumberDownsampler, BoxPlotStratifiedDownsampler, BoxPlotStreamingDownsampler } from '@core/boxplot/fiveNumber';
+import { AlgorithmType } from '@types';
 import type { DataPoint, BoxPlotSummary } from '@types';
 import ChartCard from '@components/ChartCard.vue';
 import ControlPanel from '@components/ControlPanel.vue';
@@ -43,7 +44,7 @@ use([CanvasRenderer, BoxplotChart, ScatterChart, GridComponent, TooltipComponent
 const config = ref({
   dataSize: '1000',
   targetCount: 20,
-  algorithm: 'box-five-number',
+  algorithm: AlgorithmType.BOX_FIVE_NUMBER,
   aggregation: 'average',
   preserveExtrema: true,
   showOriginal: false,
@@ -399,7 +400,7 @@ function processDownsample() {
   const sampled: DataPoint[][] = [];
   
   let sampler;
-  if (config.value.algorithm === 'box-stratified') {
+  if (config.value.algorithm === AlgorithmType.BOX_STRATIFIED) {
     sampler = new BoxPlotStratifiedDownsampler();
     originalGroups.value.forEach(group => {
       // 确保 targetCount 在有效范围内 [2, group.length]
@@ -407,7 +408,16 @@ function processDownsample() {
       const sampledGroup = sampler.downsample(group, { targetCount });
       sampled.push(sampledGroup);
     });
+  } else if (config.value.algorithm === AlgorithmType.BOX_STREAMING) {
+    sampler = new BoxPlotStreamingDownsampler(10000);
+    originalGroups.value.forEach(group => {
+      const sampledGroup = sampler.downsample(group, {});
+      const stats = sampler.stats.toBoxPlotSummary();
+      statsList.push(stats);
+      sampled.push(sampledGroup);
+    });
   } else {
+    // 默认 box-five-number
     sampler = new BoxPlotFiveNumberDownsampler();
     originalGroups.value.forEach(group => {
       // 五数概括需要至少 5 个点，如果数据不足则使用全部数据

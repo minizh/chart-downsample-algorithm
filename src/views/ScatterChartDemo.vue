@@ -54,8 +54,10 @@ import { DataGenerator } from '@core/utils/dataGenerator';
 import { 
   ScatterQuadtreeDownsampler, 
   ScatterGridDownsampler,
-  ScatterKDEWeightedDownsampler 
+  ScatterKDEWeightedDownsampler,
+  ScatterDBSCANDownsampler
 } from '@core/scatter/quadtree';
+import { AlgorithmType } from '@types';
 import type { ScatterDataPoint } from '@types';
 import ChartCard from '@components/ChartCard.vue';
 import ControlPanel from '@components/ControlPanel.vue';
@@ -65,7 +67,7 @@ use([CanvasRenderer, ScatterChart, GridComponent, TooltipComponent, DataZoomComp
 const config = ref({
   dataSize: '50000',
   targetCount: 1000,
-  algorithm: 'scatter-quadtree',
+  algorithm: 'scatter-quadtree' as AlgorithmType,
   aggregation: 'average',
   preserveExtrema: true,
   showOriginal: false
@@ -129,7 +131,7 @@ const originalChartOption = computed(() => {
       animation: false,
       large: true,
       largeThreshold: 5000,
-      progressive: 5000 // 渐进式渲染
+      progressive: 5000
     }]
   };
 });
@@ -206,14 +208,23 @@ function processDownsample() {
     console.warn(`目标采样点 ${config.value.targetCount} 超过原始数据 ${dataLength}，自动调整为 ${targetCount}`);
   }
   
+  // DBSCAN 算法复杂度较高，大数据量时给出警告
+  if (config.value.algorithm === AlgorithmType.SCATTER_DBSCAN && dataLength > 10000) {
+    console.warn(`DBSCAN 算法在处理 ${dataLength} 个数据点时可能较慢，建议数据量控制在 10,000 以下`);
+  }
+  
   let sampler;
   switch (config.value.algorithm) {
-    case 'scatter-grid':
+    case AlgorithmType.SCATTER_GRID:
       sampler = new ScatterGridDownsampler();
       break;
-    case 'scatter-kde':
+    case AlgorithmType.SCATTER_KDE:
       sampler = new ScatterKDEWeightedDownsampler();
       break;
+    case AlgorithmType.SCATTER_DBSCAN:
+      sampler = new ScatterDBSCANDownsampler();
+      break;
+    case AlgorithmType.SCATTER_QUADTREE:
     default:
       sampler = new ScatterQuadtreeDownsampler();
   }

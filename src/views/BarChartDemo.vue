@@ -33,7 +33,8 @@ import { BarChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent, DataZoomComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
 import { DataGenerator } from '@core/utils/dataGenerator';
-import { BarChartDownsampler, BarPeakPreserveDownsampler } from '@core/bar/aggregation';
+import { BarChartDownsampler, BarPeakPreserveDownsampler, BarAdaptiveDownsampler } from '@core/bar/aggregation';
+import { AlgorithmType } from '@types';
 import type { BarDataPoint } from '@types';
 import ChartCard from '@components/ChartCard.vue';
 import ControlPanel from '@components/ControlPanel.vue';
@@ -43,7 +44,7 @@ use([CanvasRenderer, BarChart, GridComponent, TooltipComponent, DataZoomComponen
 const config = ref({
   dataSize: '50000',
   targetCount: 200,
-  algorithm: 'bar-aggregation',
+  algorithm: AlgorithmType.BAR_AGGREGATION,
   aggregation: 'sum',
   preserveExtrema: true,
   showOriginal: false
@@ -184,9 +185,12 @@ function processDownsample() {
     }
     
     let sampler;
-    if (config.value.algorithm === 'bar-peak-preserve') {
+    if (config.value.algorithm === AlgorithmType.BAR_PEAK_PRESERVE) {
       sampler = new BarPeakPreserveDownsampler();
+    } else if (config.value.algorithm === AlgorithmType.BAR_ADAPTIVE) {
+      sampler = new BarAdaptiveDownsampler();
     } else {
+      // 默认 bar-aggregation
       sampler = new BarChartDownsampler();
     }
     
