@@ -204,8 +204,14 @@ export class ScatterQuadtreeDownsampler extends Downsampler<ScatterDataPoint, Sc
   downsample(data: ScatterDataPoint[], options: ScatterOptions): ScatterDataPoint[] {
     this.validateInput(data, options);
     
-    const { targetCount } = options;
+    const { targetCount, preserveExtrema } = options;
     const bounds = this.getBounds(data);
+    
+    // 如果需要保留极值点，先识别极值点
+    let extremaPoints: ScatterDataPoint[] = [];
+    if (preserveExtrema) {
+      extremaPoints = this.findExtremaPoints(data);
+    }
     
     // 构建四叉树
     const quadtree = new Quadtree(bounds, 10, 20);
@@ -220,7 +226,14 @@ export class ScatterQuadtreeDownsampler extends Downsampler<ScatterDataPoint, Sc
     leaves.sort((a, b) => b.points.length - a.points.length);
     
     const result: ScatterDataPoint[] = [];
-    const pointsPerLeaf = Math.ceil(targetCount / leaves.length);
+    
+    // 先添加极值点
+    if (preserveExtrema && extremaPoints.length > 0) {
+      result.push(...extremaPoints.slice(0, Math.min(extremaPoints.length, Math.floor(targetCount * 0.1))));
+    }
+    
+    const remainingCount = targetCount - result.length;
+    const pointsPerLeaf = Math.ceil(remainingCount / leaves.length);
     
     for (const leaf of leaves) {
       if (result.length >= targetCount) break;
@@ -231,6 +244,44 @@ export class ScatterQuadtreeDownsampler extends Downsampler<ScatterDataPoint, Sc
     }
     
     return result.slice(0, targetCount);
+  }
+  
+  /**
+   * 查找极值点（边界点）
+   */
+  private findExtremaPoints(data: ScatterDataPoint[]): ScatterDataPoint[] {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    
+    // 找出边界值
+    for (const p of data) {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    }
+    
+    // 找出接近边界的点
+    const threshold = 0.05; // 5% 容差
+    const xThreshold = (maxX - minX) * threshold;
+    const yThreshold = (maxY - minY) * threshold;
+    
+    const extrema: ScatterDataPoint[] = [];
+    const added = new Set<string>();
+    
+    for (const p of data) {
+      const key = `${p.x},${p.y}`;
+      if (added.has(key)) continue;
+      
+      if (Math.abs(p.x - minX) < xThreshold || 
+          Math.abs(p.x - maxX) < xThreshold ||
+          Math.abs(p.y - minY) < yThreshold || 
+          Math.abs(p.y - maxY) < yThreshold) {
+        extrema.push({ ...p, isExtrema: true });
+        added.add(key);
+      }
+    }
+    
+    return extrema;
   }
   
   /**
@@ -306,8 +357,14 @@ export class ScatterGridDownsampler extends Downsampler<ScatterDataPoint, Scatte
   downsample(data: ScatterDataPoint[], options: ScatterOptions): ScatterDataPoint[] {
     this.validateInput(data, options);
     
-    const { targetCount } = options;
+    const { targetCount, preserveExtrema } = options;
     const bounds = this.getBounds(data);
+    
+    // 如果需要保留极值点，先识别极值点
+    let extremaPoints: ScatterDataPoint[] = [];
+    if (preserveExtrema) {
+      extremaPoints = this.findExtremaPoints(data, bounds);
+    }
     
     // 计算网格单元大小
     const cellSize = Math.sqrt(
@@ -329,7 +386,15 @@ export class ScatterGridDownsampler extends Downsampler<ScatterDataPoint, Scatte
     }
     
     // 每格选取代表点
-    return Array.from(grid.entries()).map(([, points]) => {
+    const result: ScatterDataPoint[] = [];
+    
+    // 先添加极值点
+    if (preserveExtrema && extremaPoints.length > 0) {
+      result.push(...extremaPoints.slice(0, Math.min(extremaPoints.length, Math.floor(targetCount * 0.1))));
+    }
+    
+    // 添加网格聚合点
+    const gridPoints = Array.from(grid.entries()).map(([, points]) => {
       // 优化：单次遍历计算平均值和边界
       let sumX = 0, sumY = 0;
       let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
@@ -350,6 +415,39 @@ export class ScatterGridDownsampler extends Downsampler<ScatterDataPoint, Scatte
         xMin, xMax, yMin, yMax
       };
     });
+    
+    // 合并结果，确保不超过 targetCount
+    const remainingSlots = targetCount - result.length;
+    result.push(...gridPoints.slice(0, remainingSlots));
+    
+    return result.slice(0, targetCount);
+  }
+  
+  /**
+   * 查找极值点（边界点）
+   */
+  private findExtremaPoints(data: ScatterDataPoint[], bounds: Bounds): ScatterDataPoint[] {
+    const threshold = 0.05; // 5% 容差
+    const xThreshold = (bounds.maxX - bounds.minX) * threshold;
+    const yThreshold = (bounds.maxY - bounds.minY) * threshold;
+    
+    const extrema: ScatterDataPoint[] = [];
+    const added = new Set<string>();
+    
+    for (const p of data) {
+      const key = `${p.x},${p.y}`;
+      if (added.has(key)) continue;
+      
+      if (Math.abs(p.x - bounds.minX) < xThreshold || 
+          Math.abs(p.x - bounds.maxX) < xThreshold ||
+          Math.abs(p.y - bounds.minY) < yThreshold || 
+          Math.abs(p.y - bounds.maxY) < yThreshold) {
+        extrema.push({ ...p, isExtrema: true });
+        added.add(key);
+      }
+    }
+    
+    return extrema;
   }
   
   private getBounds(data: ScatterDataPoint[]): Bounds {

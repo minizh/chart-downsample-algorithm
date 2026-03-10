@@ -2,13 +2,13 @@
   <div class="app">
     <nav class="nav-bar">
       <div class="nav-brand">
-        <svg viewBox="0 0 24 24" width="28" height="28" class="nav-logo">
+        <!-- <svg viewBox="0 0 24 24" width="28" height="28" class="nav-logo">
           <path fill="currentColor" d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/>
-        </svg>
+        </svg> -->
         <span>ChartDownsample</span>
       </div>
       <div class="nav-links">
-        <router-link to="/" class="nav-link" exact>首页</router-link>
+        <!-- <router-link to="/" class="nav-link" exact>首页</router-link> -->
         <router-link to="/line" class="nav-link">折线图</router-link>
         <router-link to="/bar" class="nav-link">柱状图</router-link>
         <router-link to="/boxplot" class="nav-link">箱线图</router-link>

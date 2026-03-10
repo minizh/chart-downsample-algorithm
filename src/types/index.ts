@@ -4,6 +4,7 @@
 export interface DataPoint {
   x: number;
   y: number;
+  isExtrema?: boolean;
   [key: string]: any;
 }
 
@@ -25,6 +26,7 @@ export interface ScatterDataPoint extends DataPoint {
   xMax?: number;
   yMin?: number;
   yMax?: number;
+  isExtrema?: boolean;
 }
 
 /**

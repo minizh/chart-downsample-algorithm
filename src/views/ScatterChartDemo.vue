@@ -231,7 +231,8 @@ function processDownsample() {
   
   sampledData.value = sampler.downsample(originalData.value, {
     targetCount,
-    method: config.value.algorithm.replace('scatter-', '') as any
+    method: config.value.algorithm.replace('scatter-', '') as any,
+    preserveExtrema: config.value.preserveExtrema
   });
   
   processingTime.value = performance.now() - startTime;
