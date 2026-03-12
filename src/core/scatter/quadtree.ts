@@ -467,6 +467,14 @@ export class ScatterGridDownsampler extends Downsampler<ScatterDataPoint, Scatte
 /**
  * KDE 加权采样器
  * 高密度区域采样率低，低密度区域采样率高
+  1. 计算数据边界 bounds
+  2. 使用 Silverman 规则估计带宽 bandwidth
+  3. 用网格法估算每个点的密度 densities
+    1). 创建 gridSize × gridSize 的网格（gridSize ≈ √(n/10)）
+    2). 遍历所有点，将点落入对应网格格子，格子计数+1
+    3). 每个点的密度 = 其所在格子的点数
+  4. 按密度反比计算权重 weights = 1/density
+  5. 加权随机采样出 targetCount 个点
  */
 export class ScatterKDEWeightedDownsampler extends Downsampler<ScatterDataPoint, ScatterOptions> {
   

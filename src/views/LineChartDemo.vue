@@ -74,19 +74,21 @@ const sampledData = ref<DataPoint[]>([]);
 const processingTime = ref(0);
 const qualityMetrics = ref<QualityFeedback | null>(null);
 const originalDataGenTime = ref(0);
+const renderDuration = ref(0);
 
 const originalInfo = computed(() => ({
   originalCount: originalData.value.length,
   sampledCount: originalData.value.length,
   compressionRatio: 1,
-  duration: originalDataGenTime.value
+  sampleDuration: originalDataGenTime.value
 }));
 
 const sampledInfo = computed(() => ({
   originalCount: originalData.value.length,
   sampledCount: sampledData.value.length,
   compressionRatio: originalData.value.length / (sampledData.value.length || 1),
-  duration: processingTime.value
+  sampleDuration: processingTime.value,
+  renderDuration: renderDuration.value
 }));
 
 const originalChartOption = computed(() => {
@@ -173,9 +175,14 @@ function processDownsample() {
     options.useSingleBucket = false;
   }
   
+  const renderStartTime = performance.now();
   sampledData.value = sampler.downsample(originalData.value, options);
   
   processingTime.value = performance.now() - startTime;
+  
+  requestAnimationFrame(() => {
+    renderDuration.value = performance.now() - renderStartTime;
+  });
   
   // 计算质量指标
   const qualityMonitor = new QualityMonitor();

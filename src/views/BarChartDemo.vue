@@ -54,19 +54,21 @@ const originalData = ref<BarDataPoint[]>([]);
 const sampledData = ref<BarDataPoint[]>([]);
 const processingTime = ref(0);
 const originalDataGenTime = ref(0);
+const renderDuration = ref(0);
 
 const originalInfo = computed(() => ({
   originalCount: originalData.value.length,
   sampledCount: originalData.value.length,
   compressionRatio: 1,
-  duration: originalDataGenTime.value
+  sampleDuration: originalDataGenTime.value
 }));
 
 const sampledInfo = computed(() => ({
   originalCount: originalData.value.length,
   sampledCount: sampledData.value.length,
   compressionRatio: originalData.value.length / (sampledData.value.length || 1),
-  duration: processingTime.value
+  sampleDuration: processingTime.value,
+  renderDuration: renderDuration.value
 }));
 
 // 优化：使用 Object.freeze 防止大数据集的响应式劫持
@@ -201,8 +203,13 @@ function processDownsample() {
     });
     
     // 确保响应式更新
+    const renderStartTime = performance.now();
     sampledData.value = result;
     processingTime.value = performance.now() - startTime;
+    
+    requestAnimationFrame(() => {
+      renderDuration.value = performance.now() - renderStartTime;
+    });
     
     console.log(`降采样完成: ${originalData.value.length} -> ${result.length} 点, 耗时: ${processingTime.value.toFixed(2)}ms`);
   } catch (error) {

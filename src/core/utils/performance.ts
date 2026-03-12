@@ -164,12 +164,17 @@ export class QualityMonitor {
       }
     }
     
+    // 估计保真度：基于 DTW 距离，值越大表示保真度越高（最大1）
     const fidelity = Math.max(0, 1 - normalizedDTW * 10);
+    
+    // 趋势相似度：基于 DTW 距离转换为相似度，值越大表示趋势越相似（最大1）
+    // 使用指数衰减将距离转换为相似度
+    const trendSimilarity = Math.max(0, Math.min(1, Math.exp(-normalizedDTW * 5)));
     
     return {
       compressionRatio,
       estimatedFidelity: fidelity,
-      trendSimilarity: normalizedDTW,
+      trendSimilarity,
       keyPointsPreserved: keyPoints.length > 0 ? preservedCount / keyPoints.length : 1,
       recommendation: fidelity < 0.8 
         ? '建议降低采样率或切换算法' 

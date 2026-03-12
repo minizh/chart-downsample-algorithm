@@ -20,9 +20,15 @@
         <span class="info-value">{{ info.compressionRatio.toFixed(1) }}:1</span>
       </div>
       <div class="info-item">
-        <span class="info-label">耗时:</span>
-        <span class="info-value" :class="{ 'slow': info.duration > 100 }">
-          {{ info.duration.toFixed(2) }}ms
+        <span class="info-label">采样耗时:</span>
+        <span class="info-value" :class="{ 'slow': info.sampleDuration > 100 }">
+          {{ info.sampleDuration.toFixed(2) }}ms
+        </span>
+      </div>
+      <div class="info-item" v-if="info.renderDuration !== undefined">
+        <span class="info-label">渲染耗时:</span>
+        <span class="info-value" :class="{ 'slow': (info.renderDuration || 0) > 50 }">
+          {{ info.renderDuration?.toFixed(2) }}ms
         </span>
       </div>
     </div>
@@ -40,7 +46,8 @@ interface ChartInfo {
   originalCount: number;
   sampledCount: number;
   compressionRatio: number;
-  duration: number;
+  sampleDuration: number;
+  renderDuration?: number;
 }
 
 defineProps<{

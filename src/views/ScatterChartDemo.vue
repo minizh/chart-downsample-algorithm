@@ -77,19 +77,21 @@ const originalData = ref<ScatterDataPoint[]>([]);
 const sampledData = ref<ScatterDataPoint[]>([]);
 const processingTime = ref(0);
 const originalDataGenTime = ref(0);
+const renderDuration = ref(0);
 
 const originalInfo = computed(() => ({
   originalCount: originalData.value.length,
   sampledCount: originalData.value.length,
   compressionRatio: 1,
-  duration: originalDataGenTime.value
+  sampleDuration: originalDataGenTime.value
 }));
 
 const sampledInfo = computed(() => ({
   originalCount: originalData.value.length,
   sampledCount: sampledData.value.length,
   compressionRatio: originalData.value.length / (sampledData.value.length || 1),
-  duration: processingTime.value
+  sampleDuration: processingTime.value,
+  renderDuration: renderDuration.value
 }));
 
 const originalChartOption = computed(() => {
@@ -229,10 +231,14 @@ function processDownsample() {
       sampler = new ScatterQuadtreeDownsampler();
   }
   
+  const renderStartTime = performance.now();
   sampledData.value = sampler.downsample(originalData.value, {
     targetCount,
     method: config.value.algorithm.replace('scatter-', '') as any,
     preserveExtrema: config.value.preserveExtrema
+  });
+  requestAnimationFrame(() => {
+    renderDuration.value = performance.now() - renderStartTime;
   });
   
   processingTime.value = performance.now() - startTime;

@@ -59,6 +59,7 @@ const boxPlotStatsList = ref<BoxPlotSummary[]>([]);
 const originalStatsList = ref<BoxPlotSummary[]>([]);
 const processingTime = ref(0);
 const originalDataGenTime = ref(0);
+const renderDuration = ref(0);
 
 const totalOriginalCount = computed(() => 
   originalGroups.value.reduce((sum, group) => sum + group.length, 0)
@@ -72,14 +73,15 @@ const originalInfo = computed(() => ({
   originalCount: totalOriginalCount.value,
   sampledCount: totalOriginalCount.value,
   compressionRatio: 1,
-  duration: originalDataGenTime.value
+  sampleDuration: originalDataGenTime.value
 }));
 
 const sampledInfo = computed(() => ({
   originalCount: totalOriginalCount.value,
   sampledCount: totalSampledCount.value,
   compressionRatio: totalOriginalCount.value / (totalSampledCount.value || 1),
-  duration: processingTime.value
+  sampleDuration: processingTime.value,
+  renderDuration: renderDuration.value
 }));
 
 // 生成多组箱线图数据
@@ -438,6 +440,11 @@ function processDownsample() {
   boxPlotStatsList.value = statsList;
   sampledGroups.value = sampled;
   processingTime.value = performance.now() - startTime;
+  
+  const renderStartTime = performance.now();
+  requestAnimationFrame(() => {
+    renderDuration.value = performance.now() - renderStartTime;
+  });
 }
 
 function onConfigChange() {
