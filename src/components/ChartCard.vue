@@ -31,6 +31,18 @@
           {{ info.renderDuration?.toFixed(2) }}ms
         </span>
       </div>
+      <div class="info-item" v-if="info.memoryMB !== undefined">
+        <span class="info-label">数据内存:</span>
+        <span class="info-value" :class="memoryStatusClass">
+          {{ info.memoryMB.toFixed(1) }}MB
+        </span>
+      </div>
+      <div class="info-item" v-if="info.originalMemoryMB !== undefined">
+        <span class="info-label">原始数据内存:</span>
+        <span class="info-value" :class="getMemoryStatusClass(info.originalMemoryMB)">
+          {{ info.originalMemoryMB.toFixed(1) }}MB
+        </span>
+      </div>
     </div>
     <div class="chart-content">
       <slot></slot>
@@ -42,18 +54,34 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 interface ChartInfo {
   originalCount: number;
   sampledCount: number;
   compressionRatio: number;
   sampleDuration: number;
   renderDuration?: number;
+  memoryMB?: number;  // 当前数据状态的内存占用
+  originalMemoryMB?: number;  // 原始数据的内存占用（仅采样图表显示）
 }
 
-defineProps<{
+const props = defineProps<{
   title: string;
   info?: ChartInfo;
 }>();
+
+// 根据内存占用判断状态
+const memoryStatusClass = computed(() => {
+  const memory = props.info?.memoryMB;
+  return getMemoryStatusClass(memory);
+});
+
+function getMemoryStatusClass(memory: number | undefined): string {
+  if (memory === undefined) return '';
+  if (memory > 200) return 'high-memory';
+  if (memory > 100) return 'medium-memory';
+  return '';
+}
 
 function formatNumber(num: number): string {
   if (num >= 1000000) {
@@ -118,6 +146,14 @@ function formatNumber(num: number): string {
 
 .info-value.slow {
   color: #e74c3c;
+}
+
+.info-value.medium-memory {
+  color: #ef6c00;
+}
+
+.info-value.high-memory {
+  color: #c62828;
 }
 
 .chart-content {

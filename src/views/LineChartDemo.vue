@@ -75,12 +75,24 @@ const processingTime = ref(0);
 const qualityMetrics = ref<QualityFeedback | null>(null);
 const originalDataGenTime = ref(0);
 const renderDuration = ref(0);
+// 内存计算：每个 DataPoint 约 32 字节（2 个 number + 对象开销）
+const BYTES_PER_POINT = 32;
+const originalMemoryMB = computed(() => 
+  (originalData.value.length * BYTES_PER_POINT) / 1024 / 1024
+);
+const sampledMemoryMB = computed(() => 
+  (sampledData.value.length * BYTES_PER_POINT) / 1024 / 1024
+);
+
+// 跟踪上次的数据规模，用于判断是否需要重新生成数据
+let lastDataSize = config.value.dataSize;
 
 const originalInfo = computed(() => ({
   originalCount: originalData.value.length,
   sampledCount: originalData.value.length,
   compressionRatio: 1,
-  sampleDuration: originalDataGenTime.value
+  sampleDuration: originalDataGenTime.value,
+  memoryMB: originalMemoryMB.value
 }));
 
 const sampledInfo = computed(() => ({
@@ -88,7 +100,9 @@ const sampledInfo = computed(() => ({
   sampledCount: sampledData.value.length,
   compressionRatio: originalData.value.length / (sampledData.value.length || 1),
   sampleDuration: processingTime.value,
-  renderDuration: renderDuration.value
+  renderDuration: renderDuration.value,
+  memoryMB: sampledMemoryMB.value,
+  originalMemoryMB: originalMemoryMB.value
 }));
 
 const originalChartOption = computed(() => {
@@ -140,6 +154,7 @@ const sampledChartOption = computed(() => ({
 }));
 
 function generateData() {
+  // 生成原始数据（供降采样使用）
   const startTime = performance.now();
   originalData.value = DataGenerator.generateLineData(parseInt(config.value.dataSize), {
     trend: 'mixed',
@@ -147,6 +162,7 @@ function generateData() {
     includePeaks: true
   });
   originalDataGenTime.value = performance.now() - startTime;
+  
   processDownsample();
 }
 
@@ -175,22 +191,33 @@ function processDownsample() {
     options.useSingleBucket = false;
   }
   
-  const renderStartTime = performance.now();
   sampledData.value = sampler.downsample(originalData.value, options);
   
   processingTime.value = performance.now() - startTime;
   
+  // 延迟计算质量指标，避免阻塞渲染
+  setTimeout(() => {
+    const qualityMonitor = new QualityMonitor();
+    qualityMetrics.value = qualityMonitor.analyze(originalData.value, sampledData.value);
+  }, 0);
+  
+  // 测量渲染耗时（从数据变更到 DOM 渲染完成）
+  const renderStartTime = performance.now();
   requestAnimationFrame(() => {
     renderDuration.value = performance.now() - renderStartTime;
   });
   
-  // 计算质量指标
-  const qualityMonitor = new QualityMonitor();
-  qualityMetrics.value = qualityMonitor.analyze(originalData.value, sampledData.value);
 }
 
 function onConfigChange() {
-  processDownsample();
+  // 如果 dataSize 改变，需要重新生成数据
+  const currentDataSize = config.value.dataSize;
+  if (currentDataSize !== lastDataSize) {
+    lastDataSize = currentDataSize;
+    generateData();
+  } else {
+    processDownsample();
+  }
 }
 
 onMounted(() => {

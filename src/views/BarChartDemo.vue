@@ -56,11 +56,21 @@ const processingTime = ref(0);
 const originalDataGenTime = ref(0);
 const renderDuration = ref(0);
 
+// 内存计算：每个数据点约 32 字节
+const BYTES_PER_POINT = 32;
+const originalMemoryMB = computed(() => 
+  (originalData.value.length * BYTES_PER_POINT) / 1024 / 1024
+);
+const sampledMemoryMB = computed(() => 
+  (sampledData.value.length * BYTES_PER_POINT) / 1024 / 1024
+);
+
 const originalInfo = computed(() => ({
   originalCount: originalData.value.length,
   sampledCount: originalData.value.length,
   compressionRatio: 1,
-  sampleDuration: originalDataGenTime.value
+  sampleDuration: originalDataGenTime.value,
+  memoryMB: originalMemoryMB.value
 }));
 
 const sampledInfo = computed(() => ({
@@ -68,7 +78,9 @@ const sampledInfo = computed(() => ({
   sampledCount: sampledData.value.length,
   compressionRatio: originalData.value.length / (sampledData.value.length || 1),
   sampleDuration: processingTime.value,
-  renderDuration: renderDuration.value
+  renderDuration: renderDuration.value,
+  memoryMB: sampledMemoryMB.value,
+  originalMemoryMB: originalMemoryMB.value
 }));
 
 // 优化：使用 Object.freeze 防止大数据集的响应式劫持
@@ -203,10 +215,11 @@ function processDownsample() {
     });
     
     // 确保响应式更新
-    const renderStartTime = performance.now();
     sampledData.value = result;
     processingTime.value = performance.now() - startTime;
     
+    // 测量渲染耗时（从数据变更到 DOM 渲染完成）
+    const renderStartTime = performance.now();
     requestAnimationFrame(() => {
       renderDuration.value = performance.now() - renderStartTime;
     });
@@ -218,8 +231,15 @@ function processDownsample() {
   }
 }
 
+let lastDataSize = config.value.dataSize;
+
 function onConfigChange() {
-  processDownsample();
+  if (config.value.dataSize !== lastDataSize) {
+    lastDataSize = config.value.dataSize;
+    generateData();
+  } else {
+    processDownsample();
+  }
 }
 
 onMounted(() => {

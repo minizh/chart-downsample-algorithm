@@ -2,9 +2,6 @@
   <div class="app">
     <nav class="nav-bar">
       <div class="nav-brand">
-        <!-- <svg viewBox="0 0 24 24" width="28" height="28" class="nav-logo">
-          <path fill="currentColor" d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/>
-        </svg> -->
         <span>ChartDownsample</span>
       </div>
       <div class="nav-links">
@@ -20,9 +17,6 @@
       <router-view />
     </main>
     
-    <footer class="footer">
-      <p>Vue 3 + TypeScript + ECharts 6 图表降采样算法演示</p>
-    </footer>
   </div>
 </template>
 

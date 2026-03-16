@@ -1,5 +1,9 @@
 <template>
   <div class="control-panel">
+    <div class="memory-indicator" v-if="memoryInfo">
+      <span class="memory-label">内存占用</span>
+      <span class="memory-value" :class="memoryStatus">{{ memoryInfo }}</span>
+    </div>
     <div class="control-group">
       <label class="control-label">数据规模</label>
       <select v-model="localConfig.dataSize" class="control-select" @change="emitChange">
@@ -127,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, computed, watch } from 'vue';
+import { reactive, computed, watch, ref, onMounted, onUnmounted } from 'vue';
 
 interface Config {
   dataSize: string;
@@ -168,6 +172,50 @@ function emitChange() {
   emit('update:modelValue', { ...localConfig });
   emit('change', { ...localConfig });
 }
+
+// 全局内存占用显示
+const memoryInfo = ref('');
+const memoryStatus = ref('');
+let memoryTimer: number | null = null;
+
+function updateMemoryInfo() {
+  const perf = performance as any;
+  if (!perf.memory) {
+    memoryInfo.value = '';
+    return;
+  }
+  
+  const used = perf.memory.usedJSHeapSize;
+  const total = perf.memory.totalJSHeapSize;
+  const limit = perf.memory.jsHeapSizeLimit;
+  
+  const usedMB = (used / 1024 / 1024).toFixed(1);
+  const totalMB = (total / 1024 / 1024).toFixed(0);
+  const limitMB = (limit / 1024 / 1024).toFixed(0);
+  const ratio = (used / limit * 100).toFixed(1);
+  
+  memoryInfo.value = `${usedMB}/${totalMB}MB (上限:${limitMB}MB, 使用率:${ratio}%)`;
+  
+  const ratioNum = used / limit;
+  if (ratioNum > 0.8) {
+    memoryStatus.value = 'high';
+  } else if (ratioNum > 0.5) {
+    memoryStatus.value = 'medium';
+  } else {
+    memoryStatus.value = 'normal';
+  }
+}
+
+onMounted(() => {
+  updateMemoryInfo();
+  memoryTimer = window.setInterval(updateMemoryInfo, 2000);
+});
+
+onUnmounted(() => {
+  if (memoryTimer) {
+    clearInterval(memoryTimer);
+  }
+});
 </script>
 
 <style scoped>
@@ -181,6 +229,39 @@ function emitChange() {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   margin-bottom: 20px;
   align-items: flex-end;
+  position: relative;
+}
+
+.memory-indicator {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.memory-label {
+  color: #666;
+}
+
+.memory-value {
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.memory-value.medium {
+  background: #fff3e0;
+  color: #ef6c00;
+}
+
+.memory-value.high {
+  background: #ffebee;
+  color: #c62828;
 }
 
 .control-group {

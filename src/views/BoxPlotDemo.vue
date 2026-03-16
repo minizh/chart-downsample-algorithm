@@ -61,6 +61,21 @@ const processingTime = ref(0);
 const originalDataGenTime = ref(0);
 const renderDuration = ref(0);
 
+// 内存计算：每个数据点约 32 字节
+const BYTES_PER_POINT = 32;
+const originalMemoryMB = computed(() => {
+  const totalPoints = originalGroups.value.reduce((sum, g) => sum + g.length, 0);
+  return (totalPoints * BYTES_PER_POINT) / 1024 / 1024;
+});
+const sampledMemoryMB = computed(() => {
+  const totalPoints = boxPlotStatsList.value.reduce((sum, g) => sum + (g.outliers?.length || 0) + 5, 0);
+  return (totalPoints * BYTES_PER_POINT) / 1024 / 1024;
+});
+
+// 跟踪上次的配置，用于判断是否需要重新生成数据
+let lastDataSize = config.value.dataSize;
+let lastGroupCount = config.value.groupCount;
+
 const totalOriginalCount = computed(() => 
   originalGroups.value.reduce((sum, group) => sum + group.length, 0)
 );
@@ -73,7 +88,8 @@ const originalInfo = computed(() => ({
   originalCount: totalOriginalCount.value,
   sampledCount: totalOriginalCount.value,
   compressionRatio: 1,
-  sampleDuration: originalDataGenTime.value
+  sampleDuration: originalDataGenTime.value,
+  memoryMB: originalMemoryMB.value
 }));
 
 const sampledInfo = computed(() => ({
@@ -81,7 +97,9 @@ const sampledInfo = computed(() => ({
   sampledCount: totalSampledCount.value,
   compressionRatio: totalOriginalCount.value / (totalSampledCount.value || 1),
   sampleDuration: processingTime.value,
-  renderDuration: renderDuration.value
+  renderDuration: renderDuration.value,
+  memoryMB: sampledMemoryMB.value,
+  originalMemoryMB: originalMemoryMB.value
 }));
 
 // 生成多组箱线图数据
@@ -343,6 +361,7 @@ function generateData() {
     originalStatsList.value = computeStats(groups);
     
     originalDataGenTime.value = performance.now() - startTime;
+    
     console.log(`数据生成耗时: ${originalDataGenTime.value.toFixed(2)}ms, 组数: ${groupCount}, 每组样本: ${samplesPerGroup}`);
     
     processDownsample();
@@ -387,6 +406,7 @@ function generateDataAsync(groupCount: number, samplesPerGroup: number, startTim
       originalGroups.value = groups;
       originalStatsList.value = computeStats(groups);
       originalDataGenTime.value = performance.now() - startTime;
+      
       console.log(`数据生成耗时: ${originalDataGenTime.value.toFixed(2)}ms, 组数: ${groupCount}, 每组样本: ${samplesPerGroup}`);
       processDownsample();
     }
@@ -441,6 +461,7 @@ function processDownsample() {
   sampledGroups.value = sampled;
   processingTime.value = performance.now() - startTime;
   
+  // 测量渲染耗时（从数据变更到 DOM 渲染完成）
   const renderStartTime = performance.now();
   requestAnimationFrame(() => {
     renderDuration.value = performance.now() - renderStartTime;
@@ -448,9 +469,12 @@ function processDownsample() {
 }
 
 function onConfigChange() {
-  // 如果组数发生变化，需要重新生成数据
-  const currentGroupCount = originalGroups.value.length;
-  if (config.value.groupCount !== currentGroupCount && originalGroups.value.length > 0) {
+  // 如果组数或数据规模发生变化，需要重新生成数据
+  const currentDataSize = config.value.dataSize;
+  const currentGroupCount = config.value.groupCount;
+  if (currentDataSize !== lastDataSize || currentGroupCount !== lastGroupCount) {
+    lastDataSize = currentDataSize;
+    lastGroupCount = currentGroupCount;
     generateData();
   } else {
     processDownsample();
