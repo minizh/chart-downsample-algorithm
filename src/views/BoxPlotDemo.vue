@@ -47,6 +47,7 @@ const config = ref({
   algorithm: AlgorithmType.BOX_FIVE_NUMBER,
   aggregation: 'average',
   preserveExtrema: true,
+  preserveExtremaRatio: 10,
   showOriginal: false,
   groupCount: 20,
   maxOutliers: 1000,

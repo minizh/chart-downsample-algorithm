@@ -51,7 +51,7 @@ import { LineChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent, DataZoomComponent, TitleComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
 import { DataGenerator } from '@core/utils/dataGenerator';
-import { LTTBDownsampler, LTTBEnhancedDownsampler } from '@core/line/lttb';
+import { LTTBDownsampler, LTTBEnhancedDownsampler, type LTTBResult } from '@core/line/lttb';
 import { QualityMonitor } from '@core/utils/performance';
 import { AlgorithmType } from '@/types';
 import type { DataPoint, QualityFeedback } from '@/types';
@@ -67,6 +67,7 @@ const config = ref({
   algorithm: AlgorithmType.LTTB,
   aggregation: 'average',
   preserveExtrema: true,
+  preserveExtremaRatio: 10,
   showOriginal: false,
   symbolSize: 4,
   originalOptimize: true
@@ -78,6 +79,7 @@ const processingTime = ref(0);
 const qualityMetrics = ref<QualityFeedback | null>(null);
 const originalDataGenTime = ref(0);
 const renderDuration = ref(0);
+const extremaCount = ref(0);
 // 内存计算：每个 DataPoint 约 32 字节（2 个 number + 对象开销）
 const BYTES_PER_POINT = 32;
 const originalMemoryMB = computed(() => 
@@ -101,6 +103,7 @@ const originalInfo = computed(() => ({
 const sampledInfo = computed(() => ({
   originalCount: originalData.value.length,
   sampledCount: sampledData.value.length,
+  extremaCount: extremaCount.value,
   compressionRatio: originalData.value.length / (sampledData.value.length || 1),
     sampleDuration: processingTime.value,
     renderDuration: renderDuration.value,
@@ -183,29 +186,36 @@ function processDownsample() {
     console.warn(`目标采样点 ${config.value.targetCount} 超过原始数据 ${dataLength}，自动调整为 ${targetCount}`);
   }
   
-  let sampler;
-  let options: any = { targetCount, preserveExtrema: config.value.preserveExtrema };
+  let options: any = { 
+    targetCount, 
+    preserveExtrema: config.value.preserveExtrema, 
+    preserveExtremaRatio: (config.value.preserveExtremaRatio || 10) / 100 
+  };
+  
+  let result: LTTBResult;
   
   if (config.value.algorithm === AlgorithmType.LTTB_ENHANCED) {
-    sampler = new LTTBEnhancedDownsampler();
-  } else if (config.value.algorithm === AlgorithmType.LTTB_SINGLE_BUCKET) {
-    sampler = new LTTBDownsampler();
-    options.useSingleBucket = true;
+    const sampler = new LTTBEnhancedDownsampler();
+    result = sampler.downsampleWithInfo(originalData.value, options);
   } else {
-    // 默认 LTTB 标准版
-    sampler = new LTTBDownsampler();
-    options.useSingleBucket = false;
+    // 默认 LTTB 标准版或单桶版
+    const sampler = new LTTBDownsampler();
+    if (config.value.algorithm === AlgorithmType.LTTB_SINGLE_BUCKET) {
+      options.useSingleBucket = true;
+    }
+    result = sampler.downsampleWithInfo(originalData.value, options);
   }
   
-  sampledData.value = sampler.downsample(originalData.value, options);
+  sampledData.value = result.data;
+  extremaCount.value = result.extremaCount;
   
   processingTime.value = performance.now() - startTime;
   
   // 延迟计算质量指标，避免阻塞渲染
-  setTimeout(() => {
-    const qualityMonitor = new QualityMonitor();
-    qualityMetrics.value = qualityMonitor.analyze(originalData.value, sampledData.value);
-  }, 0);
+  // setTimeout(() => {
+  //   const qualityMonitor = new QualityMonitor();
+  //   qualityMetrics.value = qualityMonitor.analyze(originalData.value, sampledData.value);
+  // }, 0);
   
   // 测量渲染耗时（从数据变更到 DOM 渲染完成）
   const renderStartTime = performance.now();

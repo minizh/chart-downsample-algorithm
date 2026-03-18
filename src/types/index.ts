@@ -51,6 +51,8 @@ export interface DownsampleOptions {
   targetCount: number;
   threshold?: number;
   preserveExtrema?: boolean;
+  /** 保留极值点比例 (0-1) */
+  preserveExtremaRatio?: number;
   progressCallback?: (progress: number) => void;
 }
 

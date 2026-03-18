@@ -70,6 +70,7 @@ const config = ref({
   algorithm: 'scatter-quadtree' as AlgorithmType,
   aggregation: 'average',
   preserveExtrema: true,
+  preserveExtremaRatio: 10,
   showOriginal: false,
   gridCellSize: 6,
   symbolSize: 6,
@@ -262,6 +263,7 @@ function processDownsample() {
     targetCount,
     method: config.value.algorithm.replace('scatter-', '') as any,
     preserveExtrema: config.value.preserveExtrema,
+    preserveExtremaRatio: (config.value.preserveExtremaRatio || 10) / 100,
     gridCellSize: config.value.gridCellSize,
     symbolSize: config.value.symbolSize
   });

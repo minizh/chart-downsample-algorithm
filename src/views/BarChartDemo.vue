@@ -47,6 +47,7 @@ const config = ref({
   algorithm: AlgorithmType.BAR_AGGREGATION,
   aggregation: 'sum',
   preserveExtrema: true,
+  preserveExtremaRatio: 10,
   showOriginal: false,
   symbolSize: 6,
   originalOptimize: true

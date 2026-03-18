@@ -77,6 +77,21 @@
       </label>
     </div>
     
+    <div class="control-group" v-if="localConfig.preserveExtrema">
+      <label class="control-label">极值点保留比例</label>
+      <input 
+        type="range" 
+        v-model.number="localConfig.preserveExtremaRatio" 
+        :min="0" 
+        :max="100" 
+        :step="5"
+        class="control-slider"
+        style="width: 150px;"
+        @change="emitChange"
+      />
+      <span class="control-value">{{ localConfig.preserveExtremaRatio || 10 }}%</span>
+    </div>
+    
     <div class="control-group checkbox">
       <label class="control-checkbox">
         <input 
@@ -95,7 +110,7 @@
           v-model="localConfig.originalOptimize"
           @change="emitChange"
         />
-        <span>原始数据优化</span>
+        <span>原始数据采样</span>
       </label>
     </div>
     
@@ -190,8 +205,10 @@ interface Config {
   maxOutliers?: number;
   gridCellSize?: number;
   symbolSize?: number;
-  /** 原始数据是否启用优化（sampling + 数据过滤） */
+  /** 原始数据是否启用采样 */
   originalOptimize?: boolean;
+  /** 保留极值点比例 (0-100%) */
+  preserveExtremaRatio?: number;
 }
 
 const props = defineProps<{

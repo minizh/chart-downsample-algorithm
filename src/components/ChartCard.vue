@@ -43,6 +43,12 @@
           {{ info.originalMemoryMB.toFixed(1) }}MB
         </span>
       </div>
+      <div class="info-item" v-if="info.extremaCount !== undefined && info.extremaCount > 0">
+        <span class="info-label">极值点:</span>
+        <span class="info-value" style="color: #4a90d9;">
+          {{ formatNumber(info.extremaCount) }}
+        </span>
+      </div>
     </div>
     <div class="chart-content">
       <slot></slot>
@@ -63,6 +69,7 @@ interface ChartInfo {
   renderDuration?: number;
   memoryMB?: number;  // 当前数据状态的内存占用
   originalMemoryMB?: number;  // 原始数据的内存占用（仅采样图表显示）
+  extremaCount?: number;  // 保留的极值点数量
 }
 
 const props = defineProps<{

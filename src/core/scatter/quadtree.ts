@@ -204,7 +204,7 @@ export class ScatterQuadtreeDownsampler extends Downsampler<ScatterDataPoint, Sc
   downsample(data: ScatterDataPoint[], options: ScatterOptions): ScatterDataPoint[] {
     this.validateInput(data, options);
     
-    const { targetCount, preserveExtrema } = options;
+    const { targetCount, preserveExtrema, preserveExtremaRatio = 0.1 } = options;
     const bounds = this.getBounds(data);
     
     // 如果需要保留极值点，先识别极值点
@@ -227,9 +227,9 @@ export class ScatterQuadtreeDownsampler extends Downsampler<ScatterDataPoint, Sc
     
     const result: ScatterDataPoint[] = [];
     
-    // 先添加极值点
+    // 先添加极值点（根据配置的比例）
     if (preserveExtrema && extremaPoints.length > 0) {
-      result.push(...extremaPoints.slice(0, Math.min(extremaPoints.length, Math.floor(targetCount * 0.1))));
+      result.push(...extremaPoints.slice(0, Math.min(extremaPoints.length, Math.floor(targetCount * preserveExtremaRatio))));
     }
     
     const remainingCount = targetCount - result.length;
@@ -357,7 +357,7 @@ export class ScatterGridDownsampler extends Downsampler<ScatterDataPoint, Scatte
   downsample(data: ScatterDataPoint[], options: ScatterOptions): ScatterDataPoint[] {
     this.validateInput(data, options);
     
-    const { targetCount, preserveExtrema, gridCellSize } = options;
+    const { targetCount, preserveExtrema, preserveExtremaRatio = 0.1, gridCellSize } = options;
     const bounds = this.getBounds(data);
     
     // 如果需要保留极值点，先识别极值点
@@ -399,9 +399,9 @@ export class ScatterGridDownsampler extends Downsampler<ScatterDataPoint, Scatte
     // 每格选取代表点
     const result: ScatterDataPoint[] = [];
     
-    // 先添加极值点
+    // 先添加极值点（根据配置的比例）
     if (preserveExtrema && extremaPoints.length > 0) {
-      result.push(...extremaPoints.slice(0, Math.min(extremaPoints.length, Math.floor(targetCount * 0.1))));
+      result.push(...extremaPoints.slice(0, Math.min(extremaPoints.length, Math.floor(targetCount * preserveExtremaRatio))));
     }
     
     // 添加网格聚合点
