@@ -12,7 +12,7 @@
           <div class="stat-label">数据点处理能力</div>
         </div>
         <div class="stat-item">
-          <div class="stat-number">&lt;50ms</div>
+          <div class="stat-number">&lt;3s</div>
           <div class="stat-label">降采样延迟</div>
         </div>
         <div class="stat-item">
