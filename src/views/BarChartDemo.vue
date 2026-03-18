@@ -47,7 +47,9 @@ const config = ref({
   algorithm: AlgorithmType.BAR_AGGREGATION,
   aggregation: 'sum',
   preserveExtrema: true,
-  showOriginal: false
+  showOriginal: false,
+  symbolSize: 6,
+  originalOptimize: true
 });
 
 const originalData = ref<BarDataPoint[]>([]);
@@ -93,9 +95,10 @@ const frozenOriginalData = computed(() => {
 
 const originalChartOption = computed(() => {
   const data = frozenOriginalData.value;
-  // 大数据集限制显示点数
-  const step = Math.max(1, Math.floor(data.length / 5000));
-  const sampledForDisplay = step > 1 
+  // 根据优化开关决定是否限制显示点数
+  const enableFilter = config.value.originalOptimize !== false;
+  const step = enableFilter ? Math.max(1, Math.floor(data.length / 5000)) : 1;
+  const sampledForDisplay = step > 1 && enableFilter 
     ? data.filter((_, i) => i % step === 0)
     : data;
   
@@ -115,6 +118,7 @@ const originalChartOption = computed(() => {
     series: [{
       type: 'bar',
       data: sampledForDisplay.map(d => d.y),
+      barWidth: config.value.symbolSize || 6,
       itemStyle: { color: '#5470c6' },
       animation: false,
       large: true,

@@ -102,6 +102,18 @@ export interface DBSCANParams {
 export interface ScatterOptions extends DownsampleOptions {
   method: ScatterMethod;
   dbscanParams?: DBSCANParams;
+  gridCellSize?: number;
+  symbolSize?: number;
+}
+
+/**
+ * 原始数据渲染选项
+ */
+export interface OriginalRenderOptions {
+  /** 是否启用 ECharts 内置采样 */
+  enableSampling?: boolean;
+  /** 是否启用数据过滤（大数据量时限制显示点数） */
+  enableDataFilter?: boolean;
 }
 
 /**

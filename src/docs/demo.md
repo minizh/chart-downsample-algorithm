@@ -16,7 +16,7 @@ scatter: large + progressive (100w 首屏5s 1fps)
 
         手动建立字符串与数值的映射关系，再使用 LLTB 算法降采样，x label 使用 formatter 转换为字符串
 
-    1.2 全部极值点保留<待定>
+    1.2 全部极值点保留 <TODO>
 
     1.3 特定数据点精确值：
         

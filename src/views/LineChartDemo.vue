@@ -60,13 +60,16 @@ import ControlPanel from '@components/ControlPanel.vue';
 
 use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, DataZoomComponent, TitleComponent]);
 
+
 const config = ref({
   dataSize: '10000',
   targetCount: 1000,
   algorithm: AlgorithmType.LTTB,
   aggregation: 'average',
   preserveExtrema: true,
-  showOriginal: false
+  showOriginal: false,
+  symbolSize: 4,
+  originalOptimize: true
 });
 
 const originalData = ref<DataPoint[]>([]);
@@ -99,17 +102,18 @@ const sampledInfo = computed(() => ({
   originalCount: originalData.value.length,
   sampledCount: sampledData.value.length,
   compressionRatio: originalData.value.length / (sampledData.value.length || 1),
-  sampleDuration: processingTime.value,
-  renderDuration: renderDuration.value,
-  memoryMB: sampledMemoryMB.value,
+    sampleDuration: processingTime.value,
+    renderDuration: renderDuration.value,
+    memoryMB: sampledMemoryMB.value,
   originalMemoryMB: originalMemoryMB.value
 }));
 
 const originalChartOption = computed(() => {
   const data = originalData.value;
-  // 大数据集限制显示点数，避免浏览器卡死
-  const step = Math.max(1, Math.floor(data.length / 10000));
-  const displayData = step > 1 
+  // 根据优化开关决定是否限制显示点数
+  const enableFilter = config.value.originalOptimize !== false;
+  const step = enableFilter ? Math.max(1, Math.floor(data.length / 10000)) : 1;
+  const displayData = step > 1 && enableFilter
     ? data.filter((_, i) => i % step === 0).map(d => [d.x, d.y])
     : data.map(d => [d.x, d.y]);
   
@@ -125,10 +129,11 @@ const originalChartOption = computed(() => {
     series: [{
       type: 'line',
       data: displayData,
-      symbol: 'none',
+      symbol: (config.value.symbolSize || 0) > 0 ? 'circle' : 'none',
+      symbolSize: config.value.symbolSize || 0,
       lineStyle: { width: 1.5, color: '#5470c6' },
       animation: false,
-      sampling: 'lttb' // 启用 ECharts 内置的 LTTB 采样
+      sampling: config.value.originalOptimize !== false ? 'lttb' : false // 关闭优化时不启用内置采样
     }]
   };
 });
@@ -143,10 +148,10 @@ const sampledChartOption = computed(() => ({
     { type: 'slider', start: 0, end: 100, bottom: 10 }
   ],
   series: [{
-    type: 'line',
-    data: sampledData.value.map(d => [d.x, d.y]),
-    symbol: 'circle',
-    symbolSize: 4,
+      type: 'line',
+      data: sampledData.value.map(d => [d.x, d.y]),
+      symbol: 'circle',
+      symbolSize: config.value.symbolSize || 4,
     lineStyle: { width: 2, color: '#91cc75' },
     itemStyle: { color: '#91cc75' },
     animation: false
@@ -169,8 +174,9 @@ function generateData() {
 function processDownsample() {
   const startTime = performance.now();
   
-  // 确保 targetCount 不超过原始数据长度
   const dataLength = originalData.value.length;
+  
+  // 确保 targetCount 不超过原始数据长度
   const targetCount = Math.min(config.value.targetCount, dataLength);
   
   if (config.value.targetCount > dataLength) {

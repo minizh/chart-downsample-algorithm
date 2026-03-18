@@ -357,7 +357,7 @@ export class ScatterGridDownsampler extends Downsampler<ScatterDataPoint, Scatte
   downsample(data: ScatterDataPoint[], options: ScatterOptions): ScatterDataPoint[] {
     this.validateInput(data, options);
     
-    const { targetCount, preserveExtrema } = options;
+    const { targetCount, preserveExtrema, gridCellSize } = options;
     const bounds = this.getBounds(data);
     
     // 如果需要保留极值点，先识别极值点
@@ -367,9 +367,20 @@ export class ScatterGridDownsampler extends Downsampler<ScatterDataPoint, Scatte
     }
     
     // 计算网格单元大小
-    const cellSize = Math.sqrt(
-      (bounds.maxX - bounds.minX) * (bounds.maxY - bounds.minY) / targetCount
-    );
+    // 如果传入了自定义网格单元大小，则使用它；否则根据目标点数自动计算
+    let cellSize: number;
+    if (gridCellSize && gridCellSize > 0) {
+      // 将配置的网格单元大小映射到实际数据范围
+      const xRange = bounds.maxX - bounds.minX;
+      const yRange = bounds.maxY - bounds.minY;
+      const avgRange = (xRange + yRange) / 2;
+      // 配置值 1-100 映射到数据范围的 1% - 50%
+      cellSize = avgRange * (gridCellSize / 100);
+    } else {
+      cellSize = Math.sqrt(
+        (bounds.maxX - bounds.minX) * (bounds.maxY - bounds.minY) / targetCount
+      );
+    }
     
     const grid = new Map<string, ScatterDataPoint[]>();
     

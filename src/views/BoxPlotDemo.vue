@@ -49,7 +49,9 @@ const config = ref({
   preserveExtrema: true,
   showOriginal: false,
   groupCount: 20,
-  maxOutliers: 1000
+  maxOutliers: 1000,
+  symbolSize: 10,
+  originalOptimize: true
 });
 
 // 多组数据
@@ -217,7 +219,7 @@ const originalChartOption = computed(() => {
         name: '离群点',
         type: 'scatter',
         data: outliers,
-        symbolSize: groupNames.value.length > 1000 ? 10 : 14,
+        symbolSize: config.value.symbolSize || (groupNames.value.length > 1000 ? 10 : 14),
         itemStyle: {
           color: '#e74c3c'
         },
@@ -322,7 +324,7 @@ const sampledChartOption = computed(() => {
         name: '离群点',
         type: 'scatter',
         data: outliers,
-        symbolSize: groupNames.value.length > 1000 ? 10 : 14,
+        symbolSize: config.value.symbolSize || (groupNames.value.length > 1000 ? 10 : 14),
         itemStyle: {
           color: '#e74c3c'
         },

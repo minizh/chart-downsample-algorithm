@@ -1,9 +1,6 @@
 <template>
   <div class="control-panel">
-    <div class="memory-indicator" v-if="memoryInfo">
-      <span class="memory-label">内存占用</span>
-      <span class="memory-value" :class="memoryStatus">{{ memoryInfo }}</span>
-    </div>
+    
     <div class="control-group">
       <label class="control-label">数据规模</label>
       <select v-model="localConfig.dataSize" class="control-select" @change="emitChange">
@@ -26,7 +23,7 @@
         :max="5000" 
         :step="100"
         class="control-slider"
-        @input="emitChange"
+        @change="emitChange"
       />
       <span class="control-value">{{ localConfig.targetCount }}</span>
     </div>
@@ -91,14 +88,25 @@
       </label>
     </div>
     
+    <div class="control-group checkbox">
+      <label class="control-checkbox">
+        <input 
+          type="checkbox" 
+          v-model="localConfig.originalOptimize"
+          @change="emitChange"
+        />
+        <span>原始数据优化</span>
+      </label>
+    </div>
+    
     <div class="control-group" v-if="showGroupCount">
       <label class="control-label">组数</label>
       <input 
         type="range" 
         v-model.number="localConfig.groupCount" 
         :min="5" 
-        :max="10000" 
-        :step="10"
+        :max="200000" 
+        :step="100"
         class="control-slider"
         style="width: 200px;"
         @input="emitChange"
@@ -121,12 +129,50 @@
       <span class="control-value">{{ localConfig.maxOutliers || 1000 }}</span>
     </div>
     
+    <div class="control-group" v-if="showGridSize">
+      <label class="control-label">网格单元大小</label>
+      <input 
+        type="range" 
+        v-model.number="localConfig.gridCellSize" 
+        :min="1" 
+        :max="100" 
+        :step="1"
+        class="control-slider"
+        style="width: 150px;"
+        @input="emitChange"
+      />
+      <span class="control-value">{{ localConfig.gridCellSize || 6 }}</span>
+    </div>
+    
+    
+    
+        <div class="control-group">
+      <label class="control-label">Symbol 大小</label>
+      <input 
+        type="range" 
+        v-model.number="localConfig.symbolSize" 
+        :min="1" 
+        :max="30" 
+        :step="1"
+        class="control-slider"
+        style="width: 150px;"
+        @input="emitChange"
+      />
+      <span class="control-value">{{ localConfig.symbolSize || 6 }}</span>
+    </div>
+
     <button class="btn-refresh" @click="$emit('refresh')">
       <svg viewBox="0 0 24 24" width="16" height="16">
         <path fill="currentColor" d="M17.65 6.35A7.95 7.95 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
       </svg>
       刷新数据
     </button>
+  </div>
+  <div class="memory-indicator-outer">
+    <div class="memory-indicator" v-if="memoryInfo">
+      <span class="memory-label">内存占用</span>
+      <span class="memory-value" :class="memoryStatus">{{ memoryInfo }}</span>
+    </div>
   </div>
 </template>
 
@@ -142,6 +188,10 @@ interface Config {
   showOriginal: boolean;
   groupCount?: number;
   maxOutliers?: number;
+  gridCellSize?: number;
+  symbolSize?: number;
+  /** 原始数据是否启用优化（sampling + 数据过滤） */
+  originalOptimize?: boolean;
 }
 
 const props = defineProps<{
@@ -163,6 +213,12 @@ const showAggregation = computed(() => {
 const showGroupCount = computed(() => {
   return props.modelValue.algorithm.includes('box');
 });
+
+const showGridSize = computed(() => {
+  return props.modelValue.algorithm === 'scatter-grid';
+});
+
+
 
 watch(() => props.modelValue, (newVal) => {
   Object.assign(localConfig, newVal);
@@ -233,9 +289,9 @@ onUnmounted(() => {
 }
 
 .memory-indicator {
-  position: absolute;
-  top: 12px;
-  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -349,5 +405,13 @@ onUnmounted(() => {
 
 .btn-refresh:hover svg {
   transform: rotate(180deg);
+}
+
+
+.memory-indicator-outer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 20px;
+  margin-top: -12px;
 }
 </style>

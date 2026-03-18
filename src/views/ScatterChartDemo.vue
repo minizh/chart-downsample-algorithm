@@ -70,7 +70,10 @@ const config = ref({
   algorithm: 'scatter-quadtree' as AlgorithmType,
   aggregation: 'average',
   preserveExtrema: true,
-  showOriginal: false
+  showOriginal: false,
+  gridCellSize: 6,
+  symbolSize: 6,
+  originalOptimize: true
 });
 
 const originalData = ref<ScatterDataPoint[]>([]);
@@ -110,9 +113,10 @@ const sampledInfo = computed(() => ({
 
 const originalChartOption = computed(() => {
   const data = originalData.value;
-  // 大数据集限制显示点数
-  const step = Math.max(1, Math.floor(data.length / 50000));
-  const displayData = step > 1 
+  // 根据优化开关决定是否限制显示点数
+  const enableFilter = config.value.originalOptimize !== false;
+  const step = enableFilter ? Math.max(1, Math.floor(data.length / 50000)) : 1;
+  const displayData = step > 1 && enableFilter 
     ? data.filter((_, i) => i % step === 0).map(d => [d.x, d.y, 1])
     : data.map(d => [d.x, d.y, 1]);
   
@@ -142,7 +146,7 @@ const originalChartOption = computed(() => {
     series: [{
       type: 'scatter',
       data: displayData,
-      symbolSize: 4,
+      symbolSize: config.value.symbolSize || 4,
       itemStyle: { opacity: 0.6 },
       animation: false,
       large: true,
@@ -153,6 +157,10 @@ const originalChartOption = computed(() => {
 });
 
 const sampledChartOption = computed(() => {
+  // 网格聚合算法时使用配置的 symbolSize，否则使用密度自适应大小
+  const isGridAlgorithm = config.value.algorithm === AlgorithmType.SCATTER_GRID;
+  const baseSymbolSize = config.value.symbolSize || 6;
+  
   // 优化：单次遍历计算最大密度
   let maxDensity = 1;
   for (const d of sampledData.value) {
@@ -193,6 +201,11 @@ const sampledChartOption = computed(() => {
       type: 'scatter',
       data: sampledData.value.map(d => [d.x, d.y, d.density || 1]),
       symbolSize: (data: any) => {
+        if (isGridAlgorithm) {
+          // 网格聚合时使用固定 symbol size，稍微根据密度调整
+          const density = data[2] || 1;
+          return Math.min(baseSymbolSize * 2, Math.max(baseSymbolSize, Math.sqrt(density) * baseSymbolSize / 3));
+        }
         const density = data[2] || 1;
         return Math.min(30, Math.max(6, Math.sqrt(density) * 3));
       },
@@ -248,7 +261,9 @@ function processDownsample() {
   sampledData.value = sampler.downsample(originalData.value, {
     targetCount,
     method: config.value.algorithm.replace('scatter-', '') as any,
-    preserveExtrema: config.value.preserveExtrema
+    preserveExtrema: config.value.preserveExtrema,
+    gridCellSize: config.value.gridCellSize,
+    symbolSize: config.value.symbolSize
   });
   processingTime.value = performance.now() - startTime;
   
