@@ -7,6 +7,11 @@ export {
   LTTBEnhancedDownsampler 
 } from './line/lttb';
 
+export {
+  MinMaxDownsampler,
+  MinMaxEnhancedDownsampler
+} from './line/minmax';
+
 // 导出柱状图算法
 export { 
   BarChartDownsampler, 
@@ -41,6 +46,11 @@ import {
   LTTBEnhancedDownsampler 
 } from './line/lttb';
 
+import {
+  MinMaxDownsampler,
+  MinMaxEnhancedDownsampler
+} from './line/minmax';
+
 import { 
   BarChartDownsampler, 
   BarPeakPreserveDownsampler, 
@@ -63,6 +73,8 @@ import {
 // 自动注册
 DownsamplerFactory.register(AlgorithmType.LTTB, LTTBDownsampler);
 DownsamplerFactory.register(AlgorithmType.LTTB_ENHANCED, LTTBEnhancedDownsampler);
+DownsamplerFactory.register(AlgorithmType.MINMAX, MinMaxDownsampler);
+DownsamplerFactory.register(AlgorithmType.MINMAX_ENHANCED, MinMaxEnhancedDownsampler);
 DownsamplerFactory.register(AlgorithmType.BAR_AGGREGATION, BarChartDownsampler);
 DownsamplerFactory.register(AlgorithmType.BAR_PEAK_PRESERVE, BarPeakPreserveDownsampler);
 DownsamplerFactory.register(AlgorithmType.BAR_ADAPTIVE, BarAdaptiveDownsampler);

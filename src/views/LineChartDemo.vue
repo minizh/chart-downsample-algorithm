@@ -1,7 +1,7 @@
 <template>
   <div class="demo-page">
     <h1 class="page-title">折线图降采样演示</h1>
-    <p class="page-desc">使用 LTTB (Largest Triangle Three Buckets) 算法，在保持视觉趋势的同时大幅降低数据点数量</p>
+    <p class="page-desc">支持 LTTB (Largest Triangle Three Buckets) 和 MinMax 算法，在保持视觉趋势的同时大幅降低数据点数量</p>
     
     <ControlPanel v-model="config" @change="onConfigChange" @refresh="generateData" />
     
@@ -52,6 +52,7 @@ import { GridComponent, TooltipComponent, DataZoomComponent, TitleComponent } fr
 import VChart from 'vue-echarts';
 import { DataGenerator } from '@core/utils/dataGenerator';
 import { LTTBDownsampler, LTTBEnhancedDownsampler, type LTTBResult } from '@core/line/lttb';
+import { MinMaxDownsampler, MinMaxEnhancedDownsampler, type MinMaxResult } from '@core/line/minmax';
 import { QualityMonitor } from '@core/utils/performance';
 import { AlgorithmType } from '@/types';
 import type { DataPoint, QualityFeedback } from '@/types';
@@ -63,14 +64,13 @@ use([CanvasRenderer, LineChart, GridComponent, TooltipComponent, DataZoomCompone
 
 const config = ref({
   dataSize: '10000',
-  targetCount: 1000,
+  targetCount: 5000,
   algorithm: AlgorithmType.LTTB,
   aggregation: 'average',
-  preserveExtrema: true,
-  preserveExtremaRatio: 10,
   showOriginal: false,
   symbolSize: 4,
-  originalOptimize: true
+  originalOptimize: true,
+  preserveEdgePoints: true
 });
 
 const originalData = ref<DataPoint[]>([]);
@@ -103,7 +103,7 @@ const originalInfo = computed(() => ({
 const sampledInfo = computed(() => ({
   originalCount: originalData.value.length,
   sampledCount: sampledData.value.length,
-  extremaCount: extremaCount.value,
+
   compressionRatio: originalData.value.length / (sampledData.value.length || 1),
     sampleDuration: processingTime.value,
     renderDuration: renderDuration.value,
@@ -186,28 +186,42 @@ function processDownsample() {
     console.warn(`目标采样点 ${config.value.targetCount} 超过原始数据 ${dataLength}，自动调整为 ${targetCount}`);
   }
   
-  let options: any = { 
-    targetCount, 
-    preserveExtrema: config.value.preserveExtrema, 
-    preserveExtremaRatio: (config.value.preserveExtremaRatio || 10) / 100 
-  };
-  
-  let result: LTTBResult;
+  let result: LTTBResult | MinMaxResult;
   
   if (config.value.algorithm === AlgorithmType.LTTB_ENHANCED) {
     const sampler = new LTTBEnhancedDownsampler();
-    result = sampler.downsampleWithInfo(originalData.value, options);
+    result = sampler.downsampleWithInfo(originalData.value, { targetCount });
+    sampledData.value = result.data;
+    extremaCount.value = 0;
+  } else if (config.value.algorithm === AlgorithmType.MINMAX) {
+    const sampler = new MinMaxDownsampler();
+    const minmaxOptions = {
+      targetCount,
+      preserveEdgePoints: config.value.preserveEdgePoints
+    };
+    result = sampler.downsampleWithInfo(originalData.value, minmaxOptions);
+    sampledData.value = result.data;
+    extremaCount.value = (result as MinMaxResult).minCount + (result as MinMaxResult).maxCount;
+  } else if (config.value.algorithm === AlgorithmType.MINMAX_ENHANCED) {
+    const sampler = new MinMaxEnhancedDownsampler();
+    const minmaxOptions = {
+      targetCount,
+      preserveEdgePoints: config.value.preserveEdgePoints
+    };
+    result = sampler.downsampleWithInfo(originalData.value, minmaxOptions);
+    sampledData.value = result.data;
+    extremaCount.value = (result as MinMaxResult).minCount + (result as MinMaxResult).maxCount;
   } else {
     // 默认 LTTB 标准版或单桶版
     const sampler = new LTTBDownsampler();
+    const lttbOptions: any = { targetCount };
     if (config.value.algorithm === AlgorithmType.LTTB_SINGLE_BUCKET) {
-      options.useSingleBucket = true;
+      lttbOptions.useSingleBucket = true;
     }
-    result = sampler.downsampleWithInfo(originalData.value, options);
+    result = sampler.downsampleWithInfo(originalData.value, lttbOptions);
+    sampledData.value = result.data;
+    extremaCount.value = 0;
   }
-  
-  sampledData.value = result.data;
-  extremaCount.value = result.extremaCount;
   
   processingTime.value = performance.now() - startTime;
   

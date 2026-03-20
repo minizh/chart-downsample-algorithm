@@ -204,7 +204,7 @@ export class ScatterQuadtreeDownsampler extends Downsampler<ScatterDataPoint, Sc
   downsample(data: ScatterDataPoint[], options: ScatterOptions): ScatterDataPoint[] {
     this.validateInput(data, options);
     
-    const { targetCount, preserveExtrema, preserveExtremaRatio = 0.1 } = options;
+    const { targetCount, preserveExtrema, preserveExtremaRatio = 0.1, quadtreeParams } = options;
     const bounds = this.getBounds(data);
     
     // 如果需要保留极值点，先识别极值点
@@ -213,8 +213,10 @@ export class ScatterQuadtreeDownsampler extends Downsampler<ScatterDataPoint, Sc
       extremaPoints = this.findExtremaPoints(data);
     }
     
-    // 构建四叉树
-    const quadtree = new Quadtree(bounds, 10, 20);
+    // 构建四叉树，使用传入的参数或默认值
+    const maxPointsPerNode = quadtreeParams?.maxPointsPerNode ?? 10;
+    const maxDepth = quadtreeParams?.maxDepth ?? 20;
+    const quadtree = new Quadtree(bounds, maxPointsPerNode, maxDepth);
     for (const point of data) {
       quadtree.insert(point);
     }
@@ -357,13 +359,14 @@ export class ScatterGridDownsampler extends Downsampler<ScatterDataPoint, Scatte
   downsample(data: ScatterDataPoint[], options: ScatterOptions): ScatterDataPoint[] {
     this.validateInput(data, options);
     
-    const { targetCount, preserveExtrema, preserveExtremaRatio = 0.1, gridCellSize } = options;
+    const { targetCount, preserveExtrema, preserveExtremaRatio = 0.1, gridCellSize, gridParams } = options;
     const bounds = this.getBounds(data);
     
-    // 如果需要保留极值点，先识别极值点
+    // 如果需要保留极值点，先识别极值点（使用配置的容差）
     let extremaPoints: ScatterDataPoint[] = [];
     if (preserveExtrema) {
-      extremaPoints = this.findExtremaPoints(data, bounds);
+      const extremaThreshold = gridParams?.extremaThreshold ?? 5;
+      extremaPoints = this.findExtremaPoints(data, bounds, extremaThreshold);
     }
     
     // 计算网格单元大小
@@ -405,26 +408,9 @@ export class ScatterGridDownsampler extends Downsampler<ScatterDataPoint, Scatte
     }
     
     // 添加网格聚合点
+    const aggregationStrategy = gridParams?.aggregationStrategy ?? 'average';
     const gridPoints = Array.from(grid.entries()).map(([, points]) => {
-      // 优化：单次遍历计算平均值和边界
-      let sumX = 0, sumY = 0;
-      let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
-      
-      for (const p of points) {
-        sumX += p.x;
-        sumY += p.y;
-        if (p.x < xMin) xMin = p.x;
-        if (p.x > xMax) xMax = p.x;
-        if (p.y < yMin) yMin = p.y;
-        if (p.y > yMax) yMax = p.y;
-      }
-      
-      return {
-        x: sumX / points.length,
-        y: sumY / points.length,
-        density: points.length,
-        xMin, xMax, yMin, yMax
-      };
+      return this.aggregatePoints(points, aggregationStrategy);
     });
     
     // 合并结果，确保不超过 targetCount
@@ -435,10 +421,66 @@ export class ScatterGridDownsampler extends Downsampler<ScatterDataPoint, Scatte
   }
   
   /**
+   * 根据策略聚合网格内的点
+   */
+  private aggregatePoints(
+    points: ScatterDataPoint[], 
+    strategy: 'average' | 'max' | 'min' | 'median'
+  ): ScatterDataPoint {
+    // 计算边界
+    let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+    for (const p of points) {
+      if (p.x < xMin) xMin = p.x;
+      if (p.x > xMax) xMax = p.x;
+      if (p.y < yMin) yMin = p.y;
+      if (p.y > yMax) yMax = p.y;
+    }
+    
+    let x: number, y: number;
+    
+    switch (strategy) {
+      case 'max':
+        // 取 y 值最大的点
+        ({ x, y } = points.reduce((max, p) => p.y > max.y ? p : max, points[0]));
+        break;
+      case 'min':
+        // 取 y 值最小的点
+        ({ x, y } = points.reduce((min, p) => p.y < min.y ? p : min, points[0]));
+        break;
+      case 'median':
+        // 取中位数
+        const sortedX = [...points].sort((a, b) => a.x - b.x);
+        const sortedY = [...points].sort((a, b) => a.y - b.y);
+        const mid = Math.floor(points.length / 2);
+        x = points.length % 2 === 0 
+          ? (sortedX[mid - 1].x + sortedX[mid].x) / 2 
+          : sortedX[mid].x;
+        y = points.length % 2 === 0 
+          ? (sortedY[mid - 1].y + sortedY[mid].y) / 2 
+          : sortedY[mid].y;
+        break;
+      case 'average':
+      default:
+        // 平均值
+        const sumX = points.reduce((s, p) => s + p.x, 0);
+        const sumY = points.reduce((s, p) => s + p.y, 0);
+        x = sumX / points.length;
+        y = sumY / points.length;
+        break;
+    }
+    
+    return {
+      x, y,
+      density: points.length,
+      xMin, xMax, yMin, yMax
+    };
+  }
+  
+  /**
    * 查找极值点（边界点）
    */
-  private findExtremaPoints(data: ScatterDataPoint[], bounds: Bounds): ScatterDataPoint[] {
-    const threshold = 0.05; // 5% 容差
+  private findExtremaPoints(data: ScatterDataPoint[], bounds: Bounds, extremaThreshold: number = 5): ScatterDataPoint[] {
+    const threshold = extremaThreshold / 100; // 转换为比例
     const xThreshold = (bounds.maxX - bounds.minX) * threshold;
     const yThreshold = (bounds.maxY - bounds.minY) * threshold;
     
@@ -495,11 +537,13 @@ export class ScatterKDEWeightedDownsampler extends Downsampler<ScatterDataPoint,
     const { targetCount } = options;
     const bounds = this.getBounds(data);
     
-    // 使用 Silverman 带宽估计
-    const bandwidth = this.estimateBandwidth(data);
+    // 使用 Silverman 带宽估计，并应用带宽因子
+    const bandwidthFactor = options.kdeParams?.bandwidthFactor ?? 1.0;
+    const bandwidth = this.estimateBandwidth(data) * bandwidthFactor;
     
     // 计算每个点的密度估计（简化版，使用网格近似）
-    const densities = this.estimateDensities(data, bandwidth, bounds);
+    const densityGridSize = options.kdeParams?.densityGridSize;
+    const densities = this.estimateDensities(data, bandwidth, bounds, densityGridSize);
     
     // 按密度反比加权采样
     const weights = densities.map(d => 1 / (d + 1e-10));
@@ -578,10 +622,11 @@ export class ScatterKDEWeightedDownsampler extends Downsampler<ScatterDataPoint,
   private estimateDensities(
     data: ScatterDataPoint[], 
     _bandwidth: number,
-    bounds: Bounds
+    bounds: Bounds,
+    densityGridSize?: number
   ): number[] {
     // 简化的密度估计：使用网格计数
-    const gridSize = Math.max(10, Math.floor(Math.sqrt(data.length / 10)));
+    const gridSize = densityGridSize ?? Math.max(10, Math.floor(Math.sqrt(data.length / 10)));
     const grid: number[][] = Array(gridSize).fill(0).map(() => Array(gridSize).fill(0));
     
     for (const point of data) {

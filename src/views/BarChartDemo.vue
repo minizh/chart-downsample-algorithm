@@ -43,7 +43,7 @@ use([CanvasRenderer, BarChart, GridComponent, TooltipComponent, DataZoomComponen
 
 const config = ref({
   dataSize: '50000',
-  targetCount: 200,
+  targetCount: 5000,
   algorithm: AlgorithmType.BAR_AGGREGATION,
   aggregation: 'sum',
   preserveExtrema: true,

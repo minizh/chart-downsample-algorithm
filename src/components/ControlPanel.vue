@@ -35,6 +35,8 @@
           <option value="lttb">LTTB 标准版</option>
           <option value="lttb-single">LTTB 单桶版</option>
           <option value="lttb-enhanced">LTTB 增强版</option>
+          <option value="minmax">MinMax 标准版</option>
+          <option value="minmax-enhanced">MinMax 增强版</option>
         </optgroup>
         <optgroup label="柱状图">
           <option value="bar-aggregation">等宽聚合</option>
@@ -66,7 +68,18 @@
       </select>
     </div>
     
-    <div class="control-group checkbox">
+    <div class="control-group checkbox" v-if="isMinMaxAlgorithm">
+      <label class="control-checkbox">
+        <input 
+          type="checkbox" 
+          v-model="localConfig.preserveEdgePoints"
+          @change="emitChange"
+        />
+        <span>保留首尾点</span>
+      </label>
+    </div>
+    
+    <div class="control-group checkbox" v-if="isScatterAlgorithm">
       <label class="control-checkbox">
         <input 
           type="checkbox" 
@@ -77,7 +90,7 @@
       </label>
     </div>
     
-    <div class="control-group" v-if="localConfig.preserveExtrema">
+    <div class="control-group" v-if="isScatterAlgorithm && localConfig.preserveExtrema">
       <label class="control-label">极值点保留比例</label>
       <input 
         type="range" 
@@ -91,6 +104,8 @@
       />
       <span class="control-value">{{ localConfig.preserveExtremaRatio || 10 }}%</span>
     </div>
+    
+
     
     <div class="control-group checkbox">
       <label class="control-checkbox">
@@ -144,20 +159,161 @@
       <span class="control-value">{{ localConfig.maxOutliers || 1000 }}</span>
     </div>
     
-    <div class="control-group" v-if="showGridSize">
-      <label class="control-label">网格单元大小</label>
-      <input 
-        type="range" 
-        v-model.number="localConfig.gridCellSize" 
-        :min="1" 
-        :max="100" 
-        :step="1"
-        class="control-slider"
-        style="width: 150px;"
-        @input="emitChange"
-      />
-      <span class="control-value">{{ localConfig.gridCellSize || 6 }}</span>
-    </div>
+    <!-- 网格聚合参数 -->
+    <template v-if="isScatterAlgorithm">
+      <div class="control-group" v-if="showGridSize">
+        <label class="control-label">
+          网格单元大小
+          <span class="tooltip-icon" title="控制网格粒度，值越大每个网格单元覆盖的数据范围越大，产生的采样点越少">?</span>
+        </label>
+        <input 
+          type="range" 
+          v-model.number="localConfig.gridCellSize" 
+          :min="1" 
+          :max="100" 
+          :step="1"
+          class="control-slider"
+          style="width: 150px;"
+          @input="emitChange"
+        />
+        <span class="control-value">{{ localConfig.gridCellSize || 1 }}</span>
+      </div>
+      
+      <div class="control-group" v-if="showGridSize">
+        <label class="control-label">
+          聚合策略
+          <span class="tooltip-icon" title="网格内数据点的聚合方式，决定如何用单个点代表整个网格的数据">?</span>
+        </label>
+        <select v-model="localConfig.gridAggregationStrategy" class="control-select" @change="emitChange">
+          <option value="average">平均值</option>
+          <option value="max">最大值</option>
+          <option value="min">最小值</option>
+          <option value="median">中位数</option>
+        </select>
+      </div>
+      
+      <div class="control-group" v-if="showGridSize">
+        <label class="control-label">
+          极值容差 ({{ localConfig.gridExtremaThreshold ?? 5 }}%)
+          <span class="tooltip-icon" title="检测边界极值点的容差比例，值越大检测到的极值点越多">?</span>
+        </label>
+        <input 
+          type="range" 
+          v-model.number="localConfig.gridExtremaThreshold" 
+          :min="1" 
+          :max="20" 
+          :step="1"
+          class="control-slider"
+          style="width: 150px;"
+          @input="emitChange"
+        />
+      </div>
+      
+      <!-- KDE 参数 -->
+      <div class="control-group" v-if="showKDEParams">
+        <label class="control-label">
+          带宽因子 ({{ localConfig.kdeBandwidthFactor ?? 1.0 }})
+          <span class="tooltip-icon" title="控制密度估计的平滑程度，值越大密度估计越平滑，采样点分布更均匀">?</span>
+        </label>
+        <input 
+          type="range" 
+          v-model.number="localConfig.kdeBandwidthFactor" 
+          :min="0.5" 
+          :max="3.0" 
+          :step="0.1"
+          class="control-slider"
+          style="width: 150px;"
+          @input="emitChange"
+        />
+      </div>
+      
+      <div class="control-group" v-if="showKDEParams">
+        <label class="control-label">
+          密度网格 ({{ localConfig.kdeDensityGridSize ?? 50 }})
+          <span class="tooltip-icon" title="密度估计的分辨率，值越大密度估计越精确但计算越慢">?</span>
+        </label>
+        <input 
+          type="range" 
+          v-model.number="localConfig.kdeDensityGridSize" 
+          :min="10" 
+          :max="100" 
+          :step="5"
+          class="control-slider"
+          style="width: 150px;"
+          @input="emitChange"
+        />
+      </div>
+      
+      <!-- 四叉树参数 -->
+      <div class="control-group" v-if="showQuadtreeParams">
+        <label class="control-label">
+          节点最大点数 ({{ localConfig.quadtreeMaxPoints ?? 10 }})
+          <span class="tooltip-icon" title="每个节点允许存储的最大点数，超过此值节点会分裂成四个子节点">?</span>
+        </label>
+        <input 
+          type="range" 
+          v-model.number="localConfig.quadtreeMaxPoints" 
+          :min="5" 
+          :max="50" 
+          :step="5"
+          class="control-slider"
+          style="width: 150px;"
+          @input="emitChange"
+        />
+      </div>
+      
+      <div class="control-group" v-if="showQuadtreeParams">
+        <label class="control-label">
+          最大深度 ({{ localConfig.quadtreeMaxDepth ?? 20 }})
+          <span class="tooltip-icon" title="四叉树的最大层级深度，限制树的高度防止过度细分">?</span>
+        </label>
+        <input 
+          type="range" 
+          v-model.number="localConfig.quadtreeMaxDepth" 
+          :min="5" 
+          :max="20" 
+          :step="1"
+          class="control-slider"
+          style="width: 150px;"
+          @input="emitChange"
+        />
+      </div>
+      
+      <!-- DBSCAN 参数 -->
+      <div class="control-group" v-if="showDBSCANParams">
+        <label class="control-label">
+          邻域半径 ε ({{ localConfig.dbscanEpsilon ?? 0.1 }})
+          <span class="tooltip-icon" title="聚类的邻域半径，值越大会将更多点划入同一聚类，产生的聚类数量越少">?</span>
+        </label>
+        <input 
+          type="range" 
+          v-model.number="localConfig.dbscanEpsilon" 
+          :min="0.01" 
+          :max="1.0" 
+          :step="0.01"
+          class="control-slider"
+          style="width: 150px;"
+          @input="emitChange"
+        />
+      </div>
+      
+      <div class="control-group" v-if="showDBSCANParams">
+        <label class="control-label">
+          最小点数 ({{ localConfig.dbscanMinPoints ?? 5 }})
+          <span class="tooltip-icon" title="形成聚类所需的最小点数，值越大过滤掉的噪声点越多，只保留核心聚类">?</span>
+        </label>
+        <input 
+          type="range" 
+          v-model.number="localConfig.dbscanMinPoints" 
+          :min="3" 
+          :max="20" 
+          :step="1"
+          class="control-slider"
+          style="width: 150px;"
+          @input="emitChange"
+        />
+      </div>
+    </template>
     
     
     
@@ -207,8 +363,26 @@ interface Config {
   symbolSize?: number;
   /** 原始数据是否启用采样 */
   originalOptimize?: boolean;
+  /** 网格聚合策略 */
+  gridAggregationStrategy?: 'average' | 'max' | 'min' | 'median';
+  /** 网格极值检测容差 */
+  gridExtremaThreshold?: number;
+  /** 是否保留首尾点（MinMax算法） */
+  preserveEdgePoints?: boolean;
   /** 保留极值点比例 (0-100%) */
   preserveExtremaRatio?: number;
+  /** KDE 带宽因子 */
+  kdeBandwidthFactor?: number;
+  /** KDE 密度网格大小 */
+  kdeDensityGridSize?: number;
+  /** 四叉树节点最大点数 */
+  quadtreeMaxPoints?: number;
+  /** 四叉树最大深度 */
+  quadtreeMaxDepth?: number;
+  /** DBSCAN 邻域半径 */
+  dbscanEpsilon?: number;
+  /** DBSCAN 最小点数 */
+  dbscanMinPoints?: number;
 }
 
 const props = defineProps<{
@@ -227,12 +401,32 @@ const showAggregation = computed(() => {
   return props.modelValue.algorithm.includes('bar');
 });
 
+const isMinMaxAlgorithm = computed(() => {
+  return props.modelValue.algorithm.includes('minmax');
+});
+
+const isScatterAlgorithm = computed(() => {
+  return props.modelValue.algorithm.includes('scatter');
+});
+
 const showGroupCount = computed(() => {
   return props.modelValue.algorithm.includes('box');
 });
 
 const showGridSize = computed(() => {
   return props.modelValue.algorithm === 'scatter-grid';
+});
+
+const showKDEParams = computed(() => {
+  return props.modelValue.algorithm === 'scatter-kde';
+});
+
+const showQuadtreeParams = computed(() => {
+  return props.modelValue.algorithm === 'scatter-quadtree';
+});
+
+const showDBSCANParams = computed(() => {
+  return props.modelValue.algorithm === 'scatter-dbscan';
 });
 
 
@@ -342,6 +536,26 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 8px;
   min-width: 150px;
+}
+
+.tooltip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  background: #4a90d9;
+  color: white;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: help;
+  position: relative;
+}
+
+.tooltip-icon:hover {
+  background: #357abd;
 }
 
 .control-group.checkbox {

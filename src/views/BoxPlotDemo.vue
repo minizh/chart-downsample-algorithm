@@ -43,7 +43,7 @@ use([CanvasRenderer, BoxplotChart, ScatterChart, GridComponent, TooltipComponent
 
 const config = ref({
   dataSize: '1000',
-  targetCount: 20,
+  targetCount: 5000,
   algorithm: AlgorithmType.BOX_FIVE_NUMBER,
   aggregation: 'average',
   preserveExtrema: true,
@@ -472,12 +472,10 @@ function processDownsample() {
 }
 
 function onConfigChange() {
-  // 如果组数或数据规模发生变化，需要重新生成数据
+  // 只有数据规模发生变化时，才重新生成数据
   const currentDataSize = config.value.dataSize;
-  const currentGroupCount = config.value.groupCount;
-  if (currentDataSize !== lastDataSize || currentGroupCount !== lastGroupCount) {
+  if (currentDataSize !== lastDataSize) {
     lastDataSize = currentDataSize;
-    lastGroupCount = currentGroupCount;
     generateData();
   } else {
     processDownsample();

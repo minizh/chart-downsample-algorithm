@@ -60,7 +60,16 @@ export interface DownsampleOptions {
  * LTTB算法选项
  */
 export interface LTTBOptions extends DownsampleOptions {
+  /** 使用单桶优化（使用中点替代平均点计算参考点） */
   useSingleBucket?: boolean;
+}
+
+/**
+ * MinMax算法选项
+ */
+export interface MinMaxOptions extends DownsampleOptions {
+  /** 是否保留首尾点 */
+  preserveEdgePoints?: boolean;
 }
 
 /**
@@ -106,6 +115,27 @@ export interface ScatterOptions extends DownsampleOptions {
   dbscanParams?: DBSCANParams;
   gridCellSize?: number;
   symbolSize?: number;
+  /** 四叉树参数 */
+  quadtreeParams?: {
+    /** 每个节点最大点数 (5-50) */
+    maxPointsPerNode?: number;
+    /** 最大深度 (5-20) */
+    maxDepth?: number;
+  };
+  /** KDE 参数 */
+  kdeParams?: {
+    /** 带宽因子，值越大密度估计越平滑 (0.5-3.0) */
+    bandwidthFactor?: number;
+    /** 密度网格大小，值越大越精确但越慢 (10-100) */
+    densityGridSize?: number;
+  };
+  /** 网格聚合参数 */
+  gridParams?: {
+    /** 极值检测容差比例，值越大检测到的极值点越多 (1-20) */
+    extremaThreshold?: number;
+    /** 网格内数据聚合策略 */
+    aggregationStrategy?: 'average' | 'max' | 'min' | 'median';
+  };
 }
 
 /**
@@ -126,6 +156,8 @@ export enum AlgorithmType {
   LTTB = 'lttb',
   LTTB_SINGLE_BUCKET = 'lttb-single',
   LTTB_ENHANCED = 'lttb-enhanced',
+  MINMAX = 'minmax',
+  MINMAX_ENHANCED = 'minmax-enhanced',
   
   // 柱状图
   BAR_AGGREGATION = 'bar-aggregation',

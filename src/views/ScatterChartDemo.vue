@@ -66,15 +66,27 @@ use([CanvasRenderer, ScatterChart, GridComponent, TooltipComponent, DataZoomComp
 
 const config = ref({
   dataSize: '50000',
-  targetCount: 1000,
+  targetCount: 5000,
   algorithm: 'scatter-quadtree' as AlgorithmType,
   aggregation: 'average',
   preserveExtrema: true,
   preserveExtremaRatio: 10,
   showOriginal: false,
-  gridCellSize: 6,
+  gridCellSize: 1,
   symbolSize: 6,
-  originalOptimize: true
+  originalOptimize: true,
+  // 四叉树参数
+  quadtreeMaxPoints: 10,
+  quadtreeMaxDepth: 20,
+  // KDE 参数
+  kdeBandwidthFactor: 1.0,
+  kdeDensityGridSize: 50,
+  // DBSCAN 参数
+  dbscanEpsilon: 0.1,
+  dbscanMinPoints: 5,
+  // 网格聚合参数
+  gridAggregationStrategy: 'average',
+  gridExtremaThreshold: 5
 });
 
 const originalData = ref<ScatterDataPoint[]>([]);
@@ -265,7 +277,27 @@ function processDownsample() {
     preserveExtrema: config.value.preserveExtrema,
     preserveExtremaRatio: (config.value.preserveExtremaRatio || 10) / 100,
     gridCellSize: config.value.gridCellSize,
-    symbolSize: config.value.symbolSize
+    symbolSize: config.value.symbolSize,
+    // 四叉树参数
+    quadtreeParams: {
+      maxPointsPerNode: config.value.quadtreeMaxPoints ?? 10,
+      maxDepth: config.value.quadtreeMaxDepth ?? 20
+    },
+    // KDE 参数
+    kdeParams: {
+      bandwidthFactor: config.value.kdeBandwidthFactor ?? 1.0,
+      densityGridSize: config.value.kdeDensityGridSize ?? 50
+    },
+    // DBSCAN 参数
+    dbscanParams: {
+      epsilon: config.value.dbscanEpsilon ?? 0.1,
+      minPoints: config.value.dbscanMinPoints ?? 5
+    },
+    // 网格聚合参数
+    gridParams: {
+      extremaThreshold: config.value.gridExtremaThreshold ?? 5,
+      aggregationStrategy: config.value.gridAggregationStrategy ?? 'average'
+    }
   });
   processingTime.value = performance.now() - startTime;
   
