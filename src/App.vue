@@ -10,6 +10,7 @@
         <router-link to="/bar" class="nav-link">柱状图</router-link>
         <router-link to="/boxplot" class="nav-link">箱线图</router-link>
         <router-link to="/scatter" class="nav-link">散点图</router-link>
+        <router-link to="/adaptive-tooltip" class="nav-link highlight">🔍 智能Tooltip</router-link>
       </div>
     </nav>
     
@@ -75,6 +76,16 @@
 
 .nav-link.router-link-active {
   background: #667eea;
+  color: white;
+}
+
+.nav-link.highlight {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.nav-link.highlight:hover {
+  background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
   color: white;
 }
 

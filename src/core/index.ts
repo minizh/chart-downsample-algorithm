@@ -4,8 +4,7 @@ export { Downsampler, DownsamplerFactory, DownsamplePipeline } from './base';
 // 导出折线图算法
 export { 
   LTTBDownsampler, 
-  LTTBEnhancedDownsampler, 
-  StreamingLTTB 
+  LTTBEnhancedDownsampler 
 } from './line/lttb';
 
 // 导出柱状图算法
