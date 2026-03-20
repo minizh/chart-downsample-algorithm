@@ -33,7 +33,7 @@ import { BarChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent, DataZoomComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
 import { DataGenerator } from '@core/utils/dataGenerator';
-import { BarChartDownsampler, BarPeakPreserveDownsampler, BarAdaptiveDownsampler } from '@core/bar/aggregation';
+import { BarLTTBDownsampler, BarMinMaxDownsampler } from '@core/bar/aggregation';
 import { AlgorithmType } from '@/types';
 import type { BarDataPoint } from '@/types';
 import ChartCard from '@components/ChartCard.vue';
@@ -44,8 +44,7 @@ use([CanvasRenderer, BarChart, GridComponent, TooltipComponent, DataZoomComponen
 const config = ref({
   dataSize: '50000',
   targetCount: 5000,
-  algorithm: AlgorithmType.BAR_AGGREGATION,
-  aggregation: 'sum',
+  algorithm: AlgorithmType.BAR_MINMAX,
   preserveExtrema: true,
   preserveExtremaRatio: 10,
   showOriginal: false,
@@ -113,13 +112,13 @@ const originalChartOption = computed(() => {
     yAxis: { type: 'value' },
     tooltip: { trigger: 'axis' },
     dataZoom: [
-      { type: 'inside', start: 0, end: 10 },
-      { type: 'slider', start: 0, end: 10, bottom: 10 }
+      { type: 'inside', start: 0, end: 100 },
+      { type: 'slider', start: 0, end: 100, bottom: 10 }
     ],
     series: [{
       type: 'bar',
       data: sampledForDisplay.map(d => d.y),
-      barWidth: config.value.symbolSize || 6,
+      barWidth: config.value.symbolSize || 4,
       itemStyle: { color: '#5470c6' },
       animation: false,
       large: true,
@@ -139,7 +138,7 @@ const sampledChartOption = computed(() => ({
     trigger: 'axis',
     formatter: (params: any) => {
       const data = sampledData.value[params[0].dataIndex];
-      return `X: ${Math.round(data.x)}<br/>Y: ${data.y.toFixed(2)}${data.isPeak ? ' (峰值)' : ''}<br/>合并点数: ${data.originalCount || 1}`;
+      return `X: ${Math.round(data.x)}<br/>Y: ${data.y.toFixed(2)}<br/>合并点数: ${data.originalCount || 1}`;
     }
   },
   dataZoom: [
@@ -148,12 +147,9 @@ const sampledChartOption = computed(() => ({
   ],
   series: [{
     type: 'bar',
-    data: sampledData.value.map((d, i) => ({
-      value: d.y,
-      itemStyle: {
-        color: d.isPeak ? '#e74c3c' : '#91cc75'
-      }
-    })),
+    data: sampledData.value.map(d => d.y),
+    barWidth: config.value.symbolSize || 4,
+    itemStyle: { color: '#91cc75' },
     animation: false
   }]
 }));
@@ -204,19 +200,15 @@ function processDownsample() {
     }
     
     let sampler;
-    if (config.value.algorithm === AlgorithmType.BAR_PEAK_PRESERVE) {
-      sampler = new BarPeakPreserveDownsampler();
-    } else if (config.value.algorithm === AlgorithmType.BAR_ADAPTIVE) {
-      sampler = new BarAdaptiveDownsampler();
+    if (config.value.algorithm === AlgorithmType.BAR_LTTB) {
+      sampler = new BarLTTBDownsampler();
     } else {
-      // 默认 bar-aggregation
-      sampler = new BarChartDownsampler();
+      // 默认使用 MinMax 算法
+      sampler = new BarMinMaxDownsampler();
     }
     
     const result = sampler.downsample(originalData.value, {
-      targetCount,
-      aggregation: config.value.aggregation as any,
-      preservePeaks: config.value.preserveExtrema
+      targetCount
     });
     
     // 确保响应式更新

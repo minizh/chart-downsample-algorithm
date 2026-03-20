@@ -8,7 +8,7 @@ import LineChartDemo from '@views/LineChartDemo.vue';
 import BarChartDemo from '@views/BarChartDemo.vue';
 import BoxPlotDemo from '@views/BoxPlotDemo.vue';
 import ScatterChartDemo from '@views/ScatterChartDemo.vue';
-import AdaptiveTooltipDemo from '@views/AdaptiveTooltipDemo.vue';
+
 
 // 创建路由
 const router = createRouter({
@@ -19,7 +19,7 @@ const router = createRouter({
     { path: '/bar', name: 'BarChart', component: BarChartDemo },
     { path: '/boxplot', name: 'BoxPlot', component: BoxPlotDemo },
     { path: '/scatter', name: 'ScatterChart', component: ScatterChartDemo },
-    { path: '/adaptive-tooltip', name: 'AdaptiveTooltip', component: AdaptiveTooltipDemo }
+
   ]
 });
 

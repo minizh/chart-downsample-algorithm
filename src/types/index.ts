@@ -160,9 +160,8 @@ export enum AlgorithmType {
   MINMAX_ENHANCED = 'minmax-enhanced',
   
   // 柱状图
-  BAR_AGGREGATION = 'bar-aggregation',
-  BAR_ADAPTIVE = 'bar-adaptive',
-  BAR_PEAK_PRESERVE = 'bar-peak-preserve',
+  BAR_LTTB = 'bar-lttb',
+  BAR_MINMAX = 'bar-minmax',
   
   // 箱线图
   BOX_STRATIFIED = 'box-stratified',

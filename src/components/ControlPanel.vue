@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="control-panel">
     
     <div class="control-group">
@@ -39,9 +39,8 @@
           <option value="minmax-enhanced">MinMax 增强版</option>
         </optgroup>
         <optgroup label="柱状图">
-          <option value="bar-aggregation">等宽聚合</option>
-          <option value="bar-adaptive">自适应聚合</option>
-          <option value="bar-peak-preserve">峰值保留</option>
+          <option value="bar-lttb">LTTB</option>
+          <option value="bar-minmax">MinMax</option>
         </optgroup>
         <optgroup label="箱线图">
           <option value="box-five-number">五数概括</option>
@@ -398,7 +397,7 @@ const emit = defineEmits<{
 const localConfig = reactive({ ...props.modelValue });
 
 const showAggregation = computed(() => {
-  return props.modelValue.algorithm.includes('bar');
+  return false;
 });
 
 const isMinMaxAlgorithm = computed(() => {
@@ -646,3 +645,6 @@ onUnmounted(() => {
   margin-top: -12px;
 }
 </style>
+
+
+

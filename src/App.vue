@@ -10,7 +10,6 @@
         <router-link to="/bar" class="nav-link">柱状图</router-link>
         <router-link to="/boxplot" class="nav-link">箱线图</router-link>
         <router-link to="/scatter" class="nav-link">散点图</router-link>
-        <router-link to="/adaptive-tooltip" class="nav-link highlight">🔍 智能Tooltip</router-link>
       </div>
     </nav>
     

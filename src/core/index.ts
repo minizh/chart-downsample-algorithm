@@ -14,11 +14,8 @@ export {
 
 // 导出柱状图算法
 export { 
-  BarChartDownsampler, 
-  BarPeakPreserveDownsampler, 
-  BarAdaptiveDownsampler,
-  StackedBarDownsampler,
-  calculateOptimalBinCount
+  BarLTTBDownsampler,
+  BarMinMaxDownsampler
 } from './bar/aggregation';
 
 // 导出箱线图算法
@@ -52,9 +49,8 @@ import {
 } from './line/minmax';
 
 import { 
-  BarChartDownsampler, 
-  BarPeakPreserveDownsampler, 
-  BarAdaptiveDownsampler 
+  BarLTTBDownsampler,
+  BarMinMaxDownsampler
 } from './bar/aggregation';
 
 import { 
@@ -75,9 +71,8 @@ DownsamplerFactory.register(AlgorithmType.LTTB, LTTBDownsampler);
 DownsamplerFactory.register(AlgorithmType.LTTB_ENHANCED, LTTBEnhancedDownsampler);
 DownsamplerFactory.register(AlgorithmType.MINMAX, MinMaxDownsampler);
 DownsamplerFactory.register(AlgorithmType.MINMAX_ENHANCED, MinMaxEnhancedDownsampler);
-DownsamplerFactory.register(AlgorithmType.BAR_AGGREGATION, BarChartDownsampler);
-DownsamplerFactory.register(AlgorithmType.BAR_PEAK_PRESERVE, BarPeakPreserveDownsampler);
-DownsamplerFactory.register(AlgorithmType.BAR_ADAPTIVE, BarAdaptiveDownsampler);
+DownsamplerFactory.register(AlgorithmType.BAR_LTTB, BarLTTBDownsampler);
+DownsamplerFactory.register(AlgorithmType.BAR_MINMAX, BarMinMaxDownsampler);
 DownsamplerFactory.register(AlgorithmType.BOX_FIVE_NUMBER, BoxPlotFiveNumberDownsampler);
 DownsamplerFactory.register(AlgorithmType.BOX_STRATIFIED, BoxPlotStratifiedDownsampler);
 DownsamplerFactory.register(AlgorithmType.BOX_STREAMING, BoxPlotStreamingDownsampler);
