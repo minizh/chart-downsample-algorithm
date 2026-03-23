@@ -14,16 +14,18 @@ export class BarLTTBDownsampler extends Downsampler<BarDataPoint, BarDownsampleO
     this.validateInput(data, options);
     
     const { targetCount } = options;
-    const n = data.length;
+    // 将数据转换为普通数组，避免 Vue Proxy 问题
+    const plainData = Array.isArray(data) ? [...data] : data;
+    const n = plainData.length;
     
-    if (targetCount >= n) return [...data];
+    if (targetCount >= n) return [...plainData];
     
     // LTTB 算法适配柱状图
     const sampled: BarDataPoint[] = [];
     let a = 0; // 第一个点
-    let maxAreaPoint: BarDataPoint = data[0];
+    let maxAreaPoint: BarDataPoint = plainData[0];
     
-    sampled.push({ ...data[a], originalCount: 1 });
+    sampled.push({ ...plainData[a], originalCount: 1 });
     
     for (let i = 1; i < targetCount - 1; i++) {
       const avgRangeStart = Math.floor((n - 1) * i / targetCount) + 1;
@@ -32,8 +34,8 @@ export class BarLTTBDownsampler extends Downsampler<BarDataPoint, BarDownsampleO
       
       let avgX = 0, avgY = 0;
       for (let j = avgRangeStart; j < avgRangeEnd; j++) {
-        avgX += data[j].x;
-        avgY += data[j].y;
+        avgX += plainData[j].x;
+        avgY += plainData[j].y;
       }
       avgX /= avgRangeLength;
       avgY /= avgRangeLength;
@@ -42,25 +44,25 @@ export class BarLTTBDownsampler extends Downsampler<BarDataPoint, BarDownsampleO
       const rangeTo = Math.floor((n - 1) * (i + 1) / targetCount) + 1;
       
       let maxArea = -1;
-      let pointA = data[a];
+      let pointA = plainData[a];
       
       for (let j = rangeOffs; j < rangeTo; j++) {
         const area = Math.abs(
-          (pointA.x - avgX) * (data[j].y - pointA.y) - 
-          (pointA.x - data[j].x) * (avgY - pointA.y)
+          (pointA.x - avgX) * (plainData[j].y - pointA.y) - 
+          (pointA.x - plainData[j].x) * (avgY - pointA.y)
         );
         if (area > maxArea) {
           maxArea = area;
-          maxAreaPoint = data[j];
+          maxAreaPoint = plainData[j];
         }
       }
       
       sampled.push({ ...maxAreaPoint, originalCount: 1 });
-      a = data.indexOf(maxAreaPoint);
+      a = plainData.indexOf(maxAreaPoint);
     }
     
     // 添加最后一个点
-    sampled.push({ ...data[n - 1], originalCount: 1 });
+    sampled.push({ ...plainData[n - 1], originalCount: 1 });
     
     return sampled;
   }
@@ -75,9 +77,11 @@ export class BarMinMaxDownsampler extends Downsampler<BarDataPoint, BarDownsampl
     this.validateInput(data, options);
     
     const { targetCount } = options;
-    const n = data.length;
+    // 将数据转换为普通数组，避免 Vue Proxy 问题
+    const plainData = Array.isArray(data) ? [...data] : data;
+    const n = plainData.length;
     
-    if (targetCount >= n) return [...data];
+    if (targetCount >= n) return [...plainData];
     
     // 确保目标数量是偶数，以便每对保留一个最小值和一个最大值
     const effectiveTarget = Math.floor(targetCount / 2) * 2;
@@ -96,13 +100,13 @@ export class BarMinMaxDownsampler extends Downsampler<BarDataPoint, BarDownsampl
       let maxPoint: BarDataPoint | null = null;
       
       for (let j = start; j < end; j++) {
-        if (data[j].y < minY) {
-          minY = data[j].y;
-          minPoint = data[j];
+        if (plainData[j].y < minY) {
+          minY = plainData[j].y;
+          minPoint = plainData[j];
         }
-        if (data[j].y > maxY) {
-          maxY = data[j].y;
-          maxPoint = data[j];
+        if (plainData[j].y > maxY) {
+          maxY = plainData[j].y;
+          maxPoint = plainData[j];
         }
       }
       
