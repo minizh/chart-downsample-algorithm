@@ -5,10 +5,13 @@
         <span>ChartDownsample</span>
       </div>
       <div class="nav-links">
-        <!-- <router-link to="/" class="nav-link" exact>首页</router-link> -->
         <router-link to="/line" class="nav-link">折线图</router-link>
         <router-link to="/bar" class="nav-link">柱状图</router-link>
         <router-link to="/boxplot" class="nav-link">箱线图</router-link>
+        <router-link to="/boxplot-optimized" class="nav-link highlight">
+          <span class="new-badge">NEW</span>
+          箱线图优化版
+        </router-link>
         <router-link to="/scatter" class="nav-link">散点图</router-link>
       </div>
     </nav>
@@ -66,6 +69,9 @@
   font-size: 14px;
   font-weight: 500;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .nav-link:hover {
@@ -81,11 +87,20 @@
 .nav-link.highlight {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
+  position: relative;
 }
 
 .nav-link.highlight:hover {
   background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
   color: white;
+}
+
+.new-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  background: #e74c3c;
+  border-radius: 4px;
 }
 
 .main-content {

@@ -8,9 +8,9 @@ import LineChartDemo from '@views/LineChartDemo.vue';
 import BarChartDemo from '@views/BarChartDemo.vue';
 import BoxPlotDemo from '@views/BoxPlotDemo.vue';
 import ScatterChartDemo from '@views/ScatterChartDemo.vue';
+import OptimizedBoxChartDemo from '@views/OptimizedBoxChartDemo.vue';
 
-
-// 创建路由
+// 定义路由
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -18,8 +18,8 @@ const router = createRouter({
     { path: '/line', name: 'LineChart', component: LineChartDemo },
     { path: '/bar', name: 'BarChart', component: BarChartDemo },
     { path: '/boxplot', name: 'BoxPlot', component: BoxPlotDemo },
+    { path: '/boxplot-optimized', name: 'BoxPlotOptimized', component: OptimizedBoxChartDemo },
     { path: '/scatter', name: 'ScatterChart', component: ScatterChartDemo },
-
   ]
 });
 

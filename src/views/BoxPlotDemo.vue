@@ -11,7 +11,7 @@
         title="原始数据分布" 
         :info="originalInfo"
       >
-        <v-chart class="chart" :option="originalChartOption" autoresize />
+        <v-chart class="chart" :init-options="{ useDirtyRect: true }"" :option="originalChartOption" autoresize />
       </ChartCard>
       
       <ChartCard 

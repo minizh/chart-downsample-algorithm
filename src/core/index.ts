@@ -18,13 +18,8 @@ export {
   BarMinMaxDownsampler
 } from './bar/aggregation';
 
-// 导出箱线图算法
-export { 
-  BoxPlotFiveNumberDownsampler, 
-  BoxPlotStratifiedDownsampler,
-  BoxPlotStreamingDownsampler,
-  StreamingStats
-} from './boxplot/fiveNumber';
+// 导出箱线图算法（包含新的分层优化）
+export * from './boxplot';
 
 // 导出散点图算法
 export { 
